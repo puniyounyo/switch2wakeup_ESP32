@@ -1,15 +1,12 @@
-
 #include <Arduino.h>
 #include <NimBLEDevice.h>
 #include <NimBLEAdvertisedDevice.h>
 #include <vector>
 
-// RSSIがこの値以上の機器を表示。
-// 近くの機器を探す場合は -90、絞る場合は -70 などに調整。
+// RSSIがこの値以上の機器を表示（必要に応じて調整）
 static constexpr int RSSI_THRESHOLD = -90;
 
-// 元プロジェクトで想定されている広告データの形式を確認。
-// 配列の位置は0始まり。
+// 元プロジェクトで想定されている広告データの形式を確認
 static bool isExpectedNintendoFormat(
     const uint8_t* data, size_t len) {
 
@@ -55,7 +52,7 @@ static bool hasNintendoMarker(
   return false;
 }
 
-// MACアドレスを読みやすい形式にする。
+// MACアドレスを読みやすい大文字形式にする
 static void formatMac(
     const uint8_t* mac, char* out, size_t outSize) {
 
@@ -76,34 +73,36 @@ class ScanCallbacks : public NimBLEScanCallbacks {
     const bool nintendoMarker = hasNintendoMarker(data, len);
     const bool validFormat = isExpectedNintendoFormat(data, len);
 
-    // Nintendoマーカーがある機器、またはRSSIが強い機器を表示。
-    if (!nintendoMarker && rssi < RSSI_THRESHOLD) {
+    // ★ Nintendoマーカーまたは正規フォーマットに一致するもの以外は一切無視する
+    if (!nintendoMarker && !validFormat) {
       return;
     }
 
-    // 送信元アドレス。Nintendo形式に一致した場合も、
-    // これだけでペアリング済みJoy-Conと断定はしない。
-    const std::string address = device->getAddress().toString();
+    if (rssi < RSSI_THRESHOLD) {
+      return;
+    }
+
+    // 送信元アドレスを取得し、大文字に変換
+    String address = device->getAddress().toString().c_str();
+    address.toUpperCase();
 
     Serial.println();
     Serial.println("==================================================");
 
     if (validFormat) {
       Serial.println("[Nintendo広告形式に一致]");
-    } else if (nintendoMarker) {
-      Serial.println("[Nintendoマーカー検出・形式未確認]");
     } else {
-      Serial.println("[近くのBLE機器]");
+      Serial.println("[Nintendoマーカー検出・形式未確認]");
     }
 
-    // 1. Joy-Con MAC候補
+    // 1. Joy-Con MAC候補（大文字）
     Serial.printf("Joy-Con MAC候補 : %s\n", address.c_str());
 
     // 2. Switch 2 MAC、VID、PID
     if (validFormat) {
       uint8_t switchMac[6];
 
-      // RAWの17～22バイトを逆順に戻す。
+      // RAWの17～22バイトを逆順に戻す
       for (int i = 0; i < 6; i++) {
         switchMac[i] = data[22 - i];
       }
@@ -111,7 +110,7 @@ class ScanCallbacks : public NimBLEScanCallbacks {
       char switchMacText[18];
       formatMac(switchMac, switchMacText, sizeof(switchMacText));
 
-      // PIDは12～13バイト、リトルエンディアン。
+      // PIDは12～13バイト、リトルエンディアン
       const uint16_t pid =
           static_cast<uint16_t>(data[12]) |
           (static_cast<uint16_t>(data[13]) << 8);
@@ -126,19 +125,13 @@ class ScanCallbacks : public NimBLEScanCallbacks {
       Serial.printf("State flag      : 0x%02X\n", data[16]);
     } else {
       Serial.println("Switch 2 MAC    : 解析対象外（形式不一致）");
-      Serial.println("VID / PID       : 未解析");
     }
 
     // 3. その他の情報
     Serial.println("--- その他のデータ ---");
     Serial.printf("RSSI            : %d dBm\n", rssi);
-    Serial.printf("Adv type        : %u\n", device->getAdvType());
     Serial.printf("Payload length  : %u bytes\n",
                   static_cast<unsigned>(len));
-    Serial.printf("Nintendo marker : %s\n",
-                  nintendoMarker ? "あり" : "なし");
-    Serial.printf("Format match    : %s\n",
-                  validFormat ? "YES" : "NO");
 
     if (device->haveName()) {
       Serial.printf("Name            : %s\n",
@@ -172,11 +165,9 @@ void setup() {
 
   Serial.println();
   Serial.println("==================================================");
-  Serial.println(" ESP32-C3 BLE Scanner");
-  Serial.println(" NimBLE-Arduino 2.x");
+  Serial.println(" ESP32-C3 Nintendo-Only BLE Scanner");
   Serial.println("==================================================");
-  Serial.println("Joy-Con MAC / Switch 2 MAC / PID / RAW");
-  Serial.println("Scanning continuously...");
+  Serial.println("Scanning for Nintendo devices only...");
 
   NimBLEDevice::init("");
 
