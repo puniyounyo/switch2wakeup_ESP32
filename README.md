@@ -4,6 +4,7 @@
 Nintendo Switch 2 を物理ボタンひとつでスリープ解除するための ESP32-C3 用プロジェクトです。
 
 ボタンを押すと ESP32-C3 が Deep Sleep から復帰し、Joy-Con 互換の Wake Beacon を送信して Switch 2 を起動します。送信完了後は再び Deep Sleep に戻るため、非常に低消費電力で運用できます。
+
 ---
 
 ## 特徴
