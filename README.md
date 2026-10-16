@@ -1,44 +1,422 @@
-# ESP32-C3 Nintendo Switch 2 BLE Remote Wakeup Device
+# Nintendo Switch 2 Wake Button
+### ESP32-C3 Deep Sleep版 超低消費電力 起動リモコン
 
-ESP32-C3マイコンを使用して、Nintendo Switch 2をスリープ状態からリモートで遠隔復帰（ウェイクアップ）させるためのBLEビーコン送信デバイスです。タクトスイッチを押すと数秒間だけBLEアドバタイジング（起動用パケット）を連続放射し、即座に超省電力なディープスリープへ移行します。
+Nintendo Switch 2 を物理ボタンひとつでスリープ解除するための ESP32-C3 用プロジェクトです。
 
----
-
-## 📋 概要と特徴
-
-- **スリープ復帰ビーコンの送信**: 本物のJoy-Conになりすまして、Switch 2がスリープ中に待ち受けている特定のアドバタイジングパケットを送信します。
-- **コールドブート（誤動作）防止ガード**: USB電源挿入時などの意図しない電源投入時には、電波を発さずに即座にディープスリープへ入る安全設計です。
-- **超低消費電力**: 普段はディープスリープ（数µA）で待機し、ボタン押下時のみ数秒間稼働するため、バッテリー駆動にも最適です。
-- **専用スキャナー付属**: ペアリングに必要なJoy-ConおよびSwitch 2のMACアドレス、PIDを特定するための専用BLEスキャナーコードも同梱しています。
+ボタンを押すと ESP32-C3 が Deep Sleep から復帰し、Joy-Con 互換の Wake Beacon を送信して Switch 2 を起動します。送信完了後は再び Deep Sleep に戻るため、非常に低消費電力で運用できます。 【1-24e8fa】
 
 ---
 
-## 🛠️ 必要なハードウェア
+## 特徴
 
-- **ESP32-C3 開発ボード** (例: ESP32-C3-DevKitM-1 など)
-- **タクトスイッチ** x 1（GPIO 4 と GND の間に接続）
-- **LED** x 1（送信中の視覚的フィードバック用、内蔵LEDまたはGPIO 8等に接続）
-- ジャンタクイヤ、ブレッドボード等
+- Nintendo Switch 2 をワンボタンで起動
+- ESP32-C3対応
+- Deep Sleep対応
+- 超低消費電力
+- ボタン電池運用可能
+- USB給電運用可能
+- LEDによる送信状態表示
+- 将来的な複数台対応も容易
 
 ---
 
-## ⚙️ 開発環境とボード設定 (Arduino IDE)
+## システム構成
 
-このプロジェクトをビルド・書き込みするためには、Arduino IDEにESP32ボードマネージャーと特定のBLEライブラリを追加する必要があります。
+本プロジェクトは以下の2つのスケッチで構成されています。
 
-### 1. Arduino IDEの準備
-1. Arduino IDEを開く。
-2. **[ファイル] > [環境設定]** (Preferences) を開く。
-3. 「追加のボードマネージャのURL」に以下を追加する：
-   ```text
-   [https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json](https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json)
+### 1. BLE_Scanner.ino
 
-[ツール] > [ボード] > [ボードマネージャー] から esp32 (Espressif Systems) を検索し、最新バージョンをインストールする。2. 必須ライブラリのインストールESP32の標準Bluetoothライブラリではなく、細かいパケット制御やアドバタイジング操作が可能な NimBLE-Arduino ライブラリが必須です。Arduino IDEの [ツール] > [ライブラリを管理...] を開く。検索窓に NimBLE-Arduino と入力する。h2zero/NimBLE-Arduino を選択してインストールする。3. ボード設定の選択[ツール] メニューから、お使いのESP32-C3ボードに合わせて以下のように設定します：項目設定値の例BoardESP32C3 Dev Module (またはお使いのC3互換ボード)USB CDC On BootEnabled (シリアルモニタを使用する場合)Flash ModeQIO / DIOUpload Speed921600📥 導入・セットアップ手順ステップ 1: MACアドレスとPIDの調査 (BLE Scannerの利用)まず、お使いのSwitch 2とペアリング済みのJoy-Conの情報を取得します。同梱の BLE_Scanner.ino スケッチをESP32-C3に書き込みます。Arduino IDEのシリアルモニタを開き（ボーレート 115200）、SwitchやJoy-Conの近くで起動します。スキャン結果に表示される以下の情報を控えます：Joy-Con MAC候補 (例: A4:C1:E8:92:34:4F)Switch 2 MAC (例: A4:C1:E8:6F:E7:23)PID (例: 0x2066)💡 ESP32のMACアドレス仕様に関する補正についてESP32ハードウェアの仕様上、BluetoothのベースMACアドレスは設定値に対して自動的に +2 される挙動があります。本プロジェクトのメインスケッチには、これを相殺するために自動で -2 補正するロジックが組み込まれていますので、スキャンで得た正順のMACアドレスをそのまま記入して問題ありません。ステップ 2: 送信プログラムの書き込みメインの switch2wakeup_ESP32_Deepsleep.ino スケッチをArduino IDEで開きます。コード上部の【設定エリア】にご自身で調査した値を書き換えて入力します：C++// 1. スキャンで取得した登録済みJoy-ConのBluetooth MACアドレス（正順）
-static const char* SOURCE_JOYCON_MAC = "あなたのJoy-ConのMAC";
+Nintendoデバイスのみを抽出して検出する専用スキャナです。
 
-// 2. スキャンで取得したSwitch 2本体のBluetooth MACアドレス（正順）
-static const char* TARGET_SWITCH_MAC = "あなたのSwitch 2のMAC";
+取得できる情報
 
-// 3. 実際に取得したJoy-ConのPID
-static const uint16_t SOURCE_JOYCON_PID = 0x2066; // 例
-ESP32-C3ボードをPCに接続し、対応するポートを選択してスケッチを書き込みます。🕹️ 使い方配線確認: GPIO 4 と GND の間にタクトスイッチが接続されていることを確認します。通常動作:普段、ESP32-C3は超省電力のディープスリープ状態で待機しています。タクトスイッチを押すとスリープから復帰し、LEDが点滅しながら約4秒間、Switch 2の起動用BLEパケットを連続放射します。送信が完了すると自動的に再びディープスリープへ戻ります。安全機能: USBケーブルを抜き差しした際などのコールドブート（電源投入時）では、ボタンが押されていない限り電波を出さずに即座にスリープへ入るため、意図しない誤作動を防ぎます。
+- Joy-Con MACアドレス
+- Switch 2 MACアドレス
+- PID
+- RSSI
+- Advertisement Data
+
+BLE_Scanner.ino.txt 【2-294418】
+
+---
+
+### 2. switch2wakeup_ESP32_Deepsleep.ino
+
+Switch 2 の Wake Beacon を送信する本体プログラムです。
+
+機能
+
+- Deep Sleep
+- GPIO起床
+- Wake Beacon送信
+- LED通知
+- 自動スリープ復帰
+
+switch2wakeup_ESP32_Deepsleep.ino.txt 【1-24e8fa】
+
+---
+
+# 必要なもの
+
+## ハードウェア
+
+- ESP32-C3 SuperMini
+- タクトスイッチ × 1
+- USBケーブル
+
+### 推奨
+
+- LED × 1
+- 220Ω抵抗 × 1
+- ケース
+
+---
+
+## ソフトウェア
+
+- Arduino IDE 2.x
+- ESP32 Board Package
+- NimBLE-Arduino
+
+---
+
+# インストール
+
+## ESP32ボード追加
+
+Arduino IDEの
+
+```text
+設定
+↓
+Additional Board Manager URLs
+```
+
+へ追加
+
+```text
+https://espressif.github.io/arduino-esp32/package_esp32_index.json
+```
+
+---
+
+## ESP32ボードインストール
+
+```text
+ツール
+↓
+ボードマネージャ
+↓
+ESP32
+```
+
+をインストール
+
+---
+
+## NimBLEライブラリ
+
+ライブラリマネージャで
+
+```text
+NimBLE-Arduino
+```
+
+をインストール
+
+---
+
+# Step 1 : Switch2情報取得
+
+まず BLE_Scanner.ino.txt をESP32へ書き込みます。 【2-294418】
+
+シリアルモニタを
+
+```text
+115200bps
+```
+
+で開きます。
+
+---
+
+Switch2と登録済みJoy-Conを近くに置くと以下のような情報が表示されます。
+
+```text
+Joy-Con MAC候補 :
+AA:BB:CC:DD:EE:FF
+
+Switch 2 MAC :
+11:22:33:44:55:66
+
+PID :
+0x2066
+```
+
+【2-294418】
+
+---
+
+## メモする情報
+
+```text
+Joy-Con MAC
+
+Switch2 MAC
+
+PID
+```
+
+---
+
+# Step 2 : 起動プログラム設定
+
+switch2wakeup_ESP32_Deepsleep.ino.txt を開きます。 【1-24e8fa】
+
+以下3ヶ所を書き換えます。
+
+---
+
+## Joy-Con MAC
+
+```cpp
+static const char* SOURCE_JOYCON_MAC =
+"AA:BB:CC:DD:EE:FF";
+```
+
+↓
+
+```cpp
+取得したJoy-Con MAC
+```
+
+---
+
+## Switch2 MAC
+
+```cpp
+static const char* TARGET_SWITCH_MAC =
+"AA:BB:CC:DD:EE:FF";
+```
+
+↓
+
+```cpp
+取得したSwitch2 MAC
+```
+
+---
+
+## PID
+
+```cpp
+static const uint16_t SOURCE_JOYCON_PID =
+0x2066;
+```
+
+↓
+
+```cpp
+取得したPID
+```
+
+---
+
+# Step 3 : 配線
+
+## ボタン
+
+デフォルト設定
+
+```cpp
+BUTTON_PIN = GPIO4
+```
+
+【1-24e8fa】
+
+配線
+
+```text
+GPIO4 ── ボタン ── GND
+```
+
+内部プルアップ利用のため外部抵抗不要です。 【1-24e8fa】
+
+---
+
+## LED（任意）
+
+デフォルト
+
+```cpp
+LED_PIN = GPIO8
+```
+
+【1-24e8fa】
+
+配線
+
+```text
+GPIO8
+ ↓
+220Ω
+ ↓
+LED
+ ↓
+GND
+```
+
+---
+
+# Step 4 : 書き込み
+
+switch2wakeup_ESP32_Deepsleep.ino.txt をESP32-C3へ書き込みます。 【1-24e8fa】
+
+---
+
+# 動作確認
+
+USB接続後リセットすると
+
+```text
+>>> Power ON detected.
+Entering DEEP SLEEP immediately.
+```
+
+と表示されます。 【1-24e8fa】
+
+これは正常動作です。
+
+---
+
+Switch2をスリープ状態にし、
+
+```text
+ボタン押下
+```
+
+すると
+
+```text
+ESP32起床
+↓
+Wake Beacon送信
+↓
+Switch2起動
+↓
+Deep Sleepへ復帰
+```
+
+します。 【1-24e8fa】
+
+---
+
+# 消費電力
+
+通常時は Deep Sleep 動作です。
+
+```text
+待機
+↓
+Deep Sleep
+↓
+数μAレベル
+```
+
+ボタン押下時のみ送信処理を行います。 【1-24e8fa】
+
+---
+
+# ボタン電池運用
+
+推奨電池
+
+```text
+CR2450
+CR2477
+```
+
+安定動作のため
+
+```text
+470μF〜1000μF
+```
+
+程度の電解コンデンサ追加を推奨します。
+
+---
+
+# 複数台対応
+
+Switch2を複数台所有している場合は、
+
+- Joy-Con MAC
+- Switch MAC
+- PID
+
+を台数分保持することで拡張可能です。
+
+例
+
+```text
+ボタン1 → Switch2-A
+
+ボタン2 → Switch2-B
+
+ボタン3 → Switch2-C
+```
+
+---
+
+# トラブルシューティング
+
+## Switch2が起動しない
+
+確認項目
+
+- Joy-Con MACが正しいか
+- Switch2 MACが正しいか
+- PIDが正しいか
+- Switch2がスリープ中か
+
+---
+
+## BLE_Scannerで検出できない
+
+確認項目
+
+- 距離が遠すぎないか
+- 登録済みJoy-Conが近くにあるか
+- シリアル速度が115200bpsか
+
+---
+
+## 電池運用で不安定
+
+原因
+
+```text
+起動時の電流不足
+```
+
+対策
+
+```text
+大容量コンデンサ追加
+```
+
+---
+
+# 謝辞
+
+本プロジェクトは Nintendo Switch 2 の BLE Wake Beacon の解析結果を参考に実装されています。
+
+解析コミュニティおよび先行研究者の方々に感謝します。
+
+---
+
+# 免責
+
+本ソフトウェアおよび回路の利用は自己責任で行ってください。
+
+作者は本プロジェクトの利用によって発生した損害について一切責任を負いません。
