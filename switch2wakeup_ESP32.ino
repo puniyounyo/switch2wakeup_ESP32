@@ -1,68 +1,65 @@
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
-#include <BLEAdvertising.h>
+#include "esp_bt.h"
+#include "esp_mac.h"
 
-#define BUTTON_PIN 9
-#define LED_PIN 2
+// =================================================================
+// 【設定エリア】
+// =================================================================
 
-// ==========================================
-// 🛠️ 【設定エリア】取得したアドレスを入力
-// ==========================================
-// ターゲットのSwitch 2本体のBT MACアドレス
-uint8_t TARGET_SWITCH_MAC[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF}; 
+// 1. スキャナーで取得した「右ジョイコン」のBluetooth MACアドレス（正順・左からそのまま）
+uint8_t CONTROLLER_MAC[6] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF}; // ← 取得したジョイコンのMACに変更
 
-// ペアリング済みジョイコンのPID (通常は 0x2066 または 0x2067)
-uint16_t SOURCE_JOYCON_PID   = 0x2066;
-// ==========================================
+// 2. 「Switch 2本体」のBluetooth MACアドレス（※Wi-Fi MAC末尾+1等にしてから「逆順」にしたもの）
+uint8_t TARGET_SWITCH_MAC_REVERSED[6] = {0x97, 0x1F, 0x99, 0x55, 0xE2, 0x98}; // ← ターゲットの逆順MACに変更
 
-// 31バイトのウェイクパケットを構築する関数
-void buildWakePayload(const uint8_t target_mac[6], uint16_t pid, uint8_t out[31]) {
-  const uint8_t template_data[] = {
-    0x02, 0x01, 0x06,                         // BLE Flags
-    0x1B, 0xFF, 0x53, 0x05,                   // Mfg data, Nintendo company ID
-    0x01, 0x00, 0x03,                         // header
-    0x7E, 0x05,                               // Nintendo VID
-    0x00, 0x00,                               // PID (filled)
-    0x00, 0x01, 0x00,                         // bytes 14-16 (byte 16 = 0x81 for sleep-wake)
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00,       // target MAC reversed (filled)
-    0x0F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 // pad
-  };
-  memcpy(out, template_data, sizeof(template_data));
-  
-  // PIDの設定
-  out[12] = pid & 0xFF;
-  out[13] = (pid >> 8) & 0xFF;
-  // 状態フラグ (0x81 = スリープ復帰用)
-  out[16] = 0x81;
-  // ターゲット本体のMACアドレスを逆順にしてセット
-  for (int i = 0; i < 6; i++) {
-    out[17 + i] = target_mac[5 - i];
-  }
-}
+// 送信トリガー用のボタンピン (Seeed Studio XIAO ESP32-C3 / SuperMini の BOOTボタンは GPIO 9)
+const int BUTTON_PIN = 9; 
 
-void sendWakeBurst() {
+// =================================================================
+// ウェイクパケット送信関数
+// =================================================================
+void sendWakeBeacon() {
   Serial.println(">>> Sending Switch 2 Wake Beacon...");
-  
-  uint8_t payload[31];
-  buildWakePayload(TARGET_SWITCH_MAC, SOURCE_JOYCON_PID, payload);
-
-  // Arduinoの String 型にバイト配列を格納
-  String mfgData = "";
-  for (int i = 0; i < 31; i++) {
-    mfgData += (char)payload[i];
-  }
 
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
-  BLEAdvertisementData advData;
-  advData.setManufacturerData(mfgData); // String型をそのまま渡す
-  pAdvertising->setAdvertisementData(advData);
-
-  // 2秒間アドバタイジングを連射
-  pAdvertising->start();
-  delay(2000);
   pAdvertising->stop();
+
+  BLEAdvertisementData advData;
   
+  uint8_t raw_payload[31];
+  memset(raw_payload, 0, sizeof(raw_payload));
+  
+  // Nintendo特有のフォーマットヘッダ
+  raw_payload[0] = 0x1E; // Length
+  raw_payload[1] = 0xFF; // Manufacturer Specific Data Type
+  raw_payload[2] = 0x53; // Nintendo Company ID (LSB)
+  raw_payload[3] = 0x05; // Nintendo Company ID (MSB)
+  raw_payload[4] = 0x7E; // Vendor ID (LSB)
+  raw_payload[5] = 0x05; // Vendor ID (MSB)
+  raw_payload[6] = 0x66; // Product / Source flag
+  raw_payload[7] = 0x81; // Status flag
+  
+  // ターゲットSwitch 2のMACアドレスをコピー（逆順配列）
+  for (int i = 0; i < 6; i++) {
+    raw_payload[8 + i] = TARGET_SWITCH_MAC_REVERSED[i]; 
+  }
+
+  // ArduinoのStringにバイナリデータを正しく格納する
+  String mfgData = "";
+  for (int i = 0; i < sizeof(raw_payload); i++) {
+    mfgData += (char)raw_payload[i];
+  }
+
+  advData.setManufacturerData(mfgData);
+  pAdvertising->setAdvertisementData(advData);
+  
+  // 約2秒間バースト送信
+  pAdvertising->start();
+  delay(2000); 
+  pAdvertising->stop();
+
   Serial.println(">>> Beacon sent!");
 }
 
@@ -70,27 +67,29 @@ void setup() {
   Serial.begin(115200);
   delay(1000);
 
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
+  // 1. ESP32自体のベースMACアドレスを、ジョイコンのものに偽装する
+  esp_err_t err = esp_base_mac_addr_set(CONTROLLER_MAC);
+  if (err == ESP_OK) {
+    Serial.println(">>> Controller MAC spoofed successfully!");
+  } else {
+    Serial.printf(">>> Failed to spoof MAC address! Error: %d\n", err);
+  }
 
-  // BLE初期化
-  BLEDevice::init("Switch2_Wake_Beacon");
-  Serial.println("Single-Switch 2 Wake Beacon Ready!");
+  // 2. ピン設定 (BOOTボタン: 内部プルアップ、押すとLOW)
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  // 3. BLE初期化
+  BLEDevice::init("Switch2WakeDongle");
+  
+  Serial.println("Single-Switch 2 Wake Beacon Ready! Press BOOT button to send.");
 }
 
 void loop() {
-  // ボタンが押されたら（LOWになったら）
+  // BOOTボタンが押されたら送信
   if (digitalRead(BUTTON_PIN) == LOW) {
-    digitalWrite(LED_PIN, HIGH);
-
-    // ウェイクパケットを送信
-    sendWakeBurst();
-
-    digitalWrite(LED_PIN, LOW);
-    
-    // 連続トリガー防止のクールダウン
-    delay(3000);
+    sendWakeBeacon();
+    delay(1000); // チャタリング防止
   }
+  
   delay(50);
 }
