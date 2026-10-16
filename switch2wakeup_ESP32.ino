@@ -47,9 +47,15 @@ void sendWakeBurst() {
   uint8_t payload[31];
   buildWakePayload(TARGET_SWITCH_MAC, SOURCE_JOYCON_PID, payload);
 
+  // Arduinoの String 型にバイト配列を格納
+  String mfgData = "";
+  for (int i = 0; i < 31; i++) {
+    mfgData += (char)payload[i];
+  }
+
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   BLEAdvertisementData advData;
-  advData.setManufacturerData(std::string((char*)payload, sizeof(payload)));
+  advData.setManufacturerData(mfgData); // String型をそのまま渡す
   pAdvertising->setAdvertisementData(advData);
 
   // 2秒間アドバタイジングを連射
