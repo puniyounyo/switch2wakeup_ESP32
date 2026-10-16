@@ -3,8 +3,7 @@
 
 Nintendo Switch 2 を物理ボタンひとつでスリープ解除するための ESP32-C3 用プロジェクトです。
 
-ボタンを押すと ESP32-C3 が Deep Sleep から復帰し、Joy-Con 互換の Wake Beacon を送信して Switch 2 を起動します。送信完了後は再び Deep Sleep に戻るため、非常に低消費電力で運用できます。 【1-24e8fa】
-
+ボタンを押すと ESP32-C3 が Deep Sleep から復帰し、Joy-Con 互換の Wake Beacon を送信して Switch 2 を起動します。送信完了後は再び Deep Sleep に戻るため、非常に低消費電力で運用できます。
 ---
 
 ## 特徴
@@ -36,7 +35,6 @@ Nintendoデバイスのみを抽出して検出する専用スキャナです。
 - RSSI
 - Advertisement Data
 
-BLE_Scanner.ino.txt 【2-294418】
 
 ---
 
@@ -52,7 +50,6 @@ Switch 2 の Wake Beacon を送信する本体プログラムです。
 - LED通知
 - 自動スリープ復帰
 
-switch2wakeup_ESP32_Deepsleep.ino.txt 【1-24e8fa】
 
 ---
 
