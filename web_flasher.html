@@ -211,21 +211,26 @@
                 const reader = new FileReader();
                 
                 reader.onload = async function(event) {
-                    // ArrayBuffer をそのままバイナリ文字列（各文字の文字コードがバイト値になる形）に変換
-                    const arrayBuffer = event.target.result;
-                    const bytes = new Uint8Array(arrayBuffer);
-                    let binaryString = "";
+                    // ArrayBufferから直接Base64文字列に正確に変換する標準的な安全な書き方
+                    const buffer = event.target.result;
+                    const bytes = new Uint8Array(buffer);
+                    let binary = '';
                     const len = bytes.byteLength;
                     for (let i = 0; i < len; i++) {
-                        binaryString += String.fromCharCode(bytes[i]);
+                        binary += String.fromCharCode(bytes[i]);
                     }
+                    const base64Image = btoa(binary);
 
-                    const fileArray = [{ data: binaryString, address: 0x0000 }];
+                    const fileArray = [{ data: base64Image, address: 0x0000 }];
+                    
                     await espLoader.writeFlash({
                         fileArray: fileArray,
                         flashSize: "keep",
                         eraseAll: false,
-                        compress: true
+                        compress: true,
+                        reportProgress: (fileIndex, written, total) => {
+                            log(`書き込み中... ${Math.floor((written / total) * 100)}%`);
+                        }
                     });
                     
                     log(">>> 書き込み完了。設定データを送信中...");
