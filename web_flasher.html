@@ -99,9 +99,9 @@
         </div>
     </div>
 
-    <!-- esptool-js の読み込み（CORS対策として jsDelivr CDNに変更） -->
+    <!-- esptool-js の読み込み（安定版CDNに変更） -->
     <script type="module">
-        import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@5.2.0/bundle.js";
+        import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.5.2/bundle.js";
 
         const scanBtn = document.getElementById('scanBtn');
         const deviceSelect = document.getElementById('deviceSelect');
