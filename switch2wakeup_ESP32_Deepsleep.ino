@@ -23,7 +23,7 @@ static const uint16_t SOURCE_JOYCON_PID = 0x2066;
 // 4. ピンおよび動作タイミングの設定
 static constexpr gpio_num_t BUTTON_PIN = GPIO_NUM_4; // 復帰用タクトスイッチを接続するピン（GPIO 4 と GND の間）
 static constexpr int LED_PIN = 8;                    // 送信中の演出用LEDピン（お使いのボードに合わせて変更）
-static constexpr uint32_t BURST_MS = 4500;           // 電波の連続送信時間（4.5秒：受信タイミングを確実に捉える絶妙な長さ）
+static constexpr uint32_t BURST_MS = 3000;           // 電波の連続送信時間（3秒：受信タイミングを確実に捉える絶妙な長さ）
 
 // =================================================================
 
