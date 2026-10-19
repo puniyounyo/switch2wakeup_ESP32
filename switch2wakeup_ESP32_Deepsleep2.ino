@@ -10,8 +10,8 @@
 // 【設定エリア】
 // =================================================================
 
-static const char* SOURCE_JOYCON_MAC = "A4:C1:E8:92:34:4F";
-static const char* TARGET_SWITCH_MAC = "A4:C1:E8:6F:E7:23";
+static const char* SOURCE_JOYCON_MAC = "AA:BB:CC:DD:EE:FF";
+static const char* TARGET_SWITCH_MAC = "AA:BB:CC:DD:EE:FF";
 static const uint16_t SOURCE_JOYCON_PID = 0x2066;
 
 static constexpr gpio_num_t BUTTON_PIN = GPIO_NUM_4; 
