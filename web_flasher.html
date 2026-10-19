@@ -8,30 +8,29 @@
         * { box-sizing: border-box; }
         body { 
             font-family: sans-serif; 
-            max-width: 1200px; 
+            max-width: 1100px; 
             margin: 10px auto; 
             padding: 10px; 
             background: #f4f4f9; 
             color: #333; 
-            font-size: 14px;
+            font-size: 13px;
         }
-        h2 { margin: 0 0 8px 0; color: #007bff; font-size: 16px; }
+        h2 { margin: 0 0 6px 0; color: #007bff; font-size: 15px; }
         .grid-container {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 12px;
+            gap: 10px;
         }
         .card { 
             background: #fff; 
-            padding: 12px; 
+            padding: 10px; 
             border-radius: 6px; 
             box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
         }
-        .full-width { grid-column: span 2; }
-        label { display: block; margin-top: 6px; font-weight: bold; font-size: 12px; }
-        input[type="text"] { width: 100%; padding: 6px; margin-top: 3px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; font-family: monospace; }
-        select { width: 100%; padding: 6px; margin-top: 3px; font-size: 13px; }
-        button { background: #007bff; color: white; border: none; padding: 8px 12px; font-size: 13px; border-radius: 4px; cursor: pointer; margin-top: 8px; margin-right: 5px; }
+        label { display: block; margin-top: 4px; font-weight: bold; font-size: 11px; }
+        input[type="text"] { width: 100%; padding: 5px; margin-top: 2px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; font-family: monospace; }
+        select { width: 100%; padding: 5px; margin-top: 2px; font-size: 12px; }
+        button { background: #007bff; color: white; border: none; padding: 6px 10px; font-size: 12px; border-radius: 4px; cursor: pointer; margin-top: 6px; margin-right: 4px; }
         button:hover { background: #0056b3; }
         button:disabled { background: #cccccc; cursor: not-allowed; }
         button.success { background: #28a745; }
@@ -39,24 +38,24 @@
         pre { 
             background: #1e1e1e; 
             color: #00ff00; 
-            padding: 10px; 
+            padding: 8px; 
             border-radius: 4px; 
-            height: 110px; 
+            height: 90px; 
             overflow-y: scroll; 
             font-family: monospace; 
             font-size: 11px; 
             margin: 0;
         }
-        p { margin: 4px 0; font-size: 12px; color: #666; }
+        p { margin: 2px 0; font-size: 11px; color: #666; }
     </style>
 </head>
 <body>
 
     <div class="grid-container">
-        <!-- 左側: スキャン & 設定 -->
+        <!-- 左上: Bluetooth スキャン -->
         <div class="card">
             <h2>🔍 1. Bluetooth 周辺スキャン</h2>
-            <p>近くのデバイスをスキャンし、Joy-ConやSwitchのMACを反映します。</p>
+            <p>周辺デバイスをスキャンし、Joy-ConやSwitchのMACを反映します。</p>
             <button id="scanBtn">周辺デバイスをスキャン</button>
             
             <label for="deviceSelect">検出されたデバイス:</label>
@@ -69,7 +68,7 @@
             </div>
         </div>
 
-        <!-- 右側: 設定値の確認・調整 -->
+        <!-- 右上: 設定値の確認・調整 -->
         <div class="card">
             <h2>⚙️ 2. 登録パラメータ確認</h2>
             <div>
@@ -86,23 +85,23 @@
             </div>
         </div>
 
-        <!-- 下部左: 書き込み制御 -->
+        <!-- 左下: 書き込み制御 -->
         <div class="card">
             <h2>🚀 3. 書き込み ＆ 設定転送</h2>
             <button id="connectBtn">1. シリアルポート接続</button>
             <button id="flashBtn" class="success" disabled>2. 書込 ＆ 設定送信</button>
         </div>
 
-        <!-- 下部右: ログ出力 -->
+        <!-- 右下: ログ出力 -->
         <div class="card">
             <h2>📊 ログ出力</h2>
             <pre id="console">待機中...</pre>
         </div>
     </div>
 
-    <!-- esptool-js の読み込み -->
+    <!-- esptool-js の読み込み（CORS対策として jsDelivr CDNに変更） -->
     <script type="module">
-        import { ESPLoader, Transport } from "https://unpkg.com/esptool-js@5.2.0/bundle.js";
+        import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@5.2.0/bundle.js";
 
         const scanBtn = document.getElementById('scanBtn');
         const deviceSelect = document.getElementById('deviceSelect');
@@ -122,10 +121,23 @@
             consoleEl.scrollTop = consoleEl.scrollHeight;
         }
 
+        // ブラウザ対応チェック
+        window.addEventListener('DOMContentLoaded', () => {
+            if (!navigator.serial) {
+                log("⚠️ 警告: Web Serial非対応ブラウザです。Chrome/Edgeをご利用ください。");
+                connectBtn.disabled = true;
+            } else {
+                log(">>> 準備完了。「1. シリアルポート接続」を押してください。");
+            }
+        });
+
         // Web Bluetooth スキャン
         scanBtn.addEventListener('click', async () => {
             try {
-                log(">>> スキャン開始（ポップアップからデバイスを選択）...");
+                if (!navigator.bluetooth) {
+                    throw new Error("Web Bluetooth APIがサポートされていません。");
+                }
+                log(">>> スキャン開始（ポップアップから選択）...");
                 const device = await navigator.bluetooth.requestDevice({
                     acceptAllDevices: true,
                     optionalServices: []
@@ -165,6 +177,7 @@
 
         connectBtn.addEventListener('click', async () => {
             try {
+                log(">>> シリアルポート選択画面を開きます...");
                 port = await navigator.serial.requestPort();
                 transport = new Transport(port);
                 
@@ -179,7 +192,7 @@
                 });
 
                 const chip = await espLoader.main();
-                log(`ESP32接続成功: ${chip}`);
+                log(`ESP32接続成功: 検出チップ = ${chip}`);
                 
                 connectBtn.disabled = true;
                 flashBtn.disabled = false;
@@ -194,7 +207,7 @@
                 log(">>> ファームウェア書き込み開始...");
 
                 const response = await fetch("firmware.bin");
-                if (!response.ok) throw new Error("firmware.bin が見つかりません。");
+                if (!response.ok) throw new Error("firmware.bin が同じフォルダに見つかりません。");
                 
                 const blob = await response.blob();
                 const reader = new FileReader();
