@@ -211,7 +211,16 @@
                 const reader = new FileReader();
                 
                 reader.onload = async function(event) {
-                    const fileArray = [{ data: event.target.result, address: 0x0000 }];
+                    // ArrayBuffer を取得して esptool-js が処理できる形式（Base64等）に変換
+                    const arrayBuffer = event.target.result;
+                    const bytes = new Uint8Array(arrayBuffer);
+                    let binary = "";
+                    for (let i = 0; i < bytes.byteLength; i++) {
+                        binary += String.fromCharCode(bytes[i]);
+                    }
+                    const base64Data = btoa(binary);
+
+                    const fileArray = [{ data: base64Data, address: 0x0000 }];
                     await espLoader.writeFlash({
                         fileArray: fileArray,
                         flashSize: "keep",
@@ -232,7 +241,8 @@
                     flashBtn.disabled = false;
                 };
                 
-                reader.readAsBinaryString(blob);
+                // ArrayBufferとして読み込むように変更
+                reader.readAsArrayBuffer(blob);
             } catch (e) {
                 log(`エラー: ${e.message}`);
                 flashBtn.disabled = false;
