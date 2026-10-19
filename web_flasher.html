@@ -85,14 +85,14 @@
             </div>
         </div>
 
-        <!-- 左下: 書き込み制御 -->
+        <!-- 下部左: 書き込み制御 -->
         <div class="card">
             <h2>🚀 3. 書き込み ＆ 設定転送</h2>
             <button id="connectBtn">1. シリアルポート接続</button>
             <button id="flashBtn" class="success" disabled>2. 書込 ＆ 設定送信</button>
         </div>
 
-        <!-- 右下: ログ出力 -->
+        <!-- 下部右: ログ出力 -->
         <div class="card">
             <h2>📊 ログ出力</h2>
             <pre id="console">待機中...</pre>
@@ -211,16 +211,16 @@
                 const reader = new FileReader();
                 
                 reader.onload = async function(event) {
-                    // ArrayBuffer を取得して esptool-js が処理できる形式（Base64等）に変換
+                    // ArrayBuffer をそのままバイナリ文字列（各文字の文字コードがバイト値になる形）に変換
                     const arrayBuffer = event.target.result;
                     const bytes = new Uint8Array(arrayBuffer);
-                    let binary = "";
-                    for (let i = 0; i < bytes.byteLength; i++) {
-                        binary += String.fromCharCode(bytes[i]);
+                    let binaryString = "";
+                    const len = bytes.byteLength;
+                    for (let i = 0; i < len; i++) {
+                        binaryString += String.fromCharCode(bytes[i]);
                     }
-                    const base64Data = btoa(binary);
 
-                    const fileArray = [{ data: base64Data, address: 0x0000 }];
+                    const fileArray = [{ data: binaryString, address: 0x0000 }];
                     await espLoader.writeFlash({
                         fileArray: fileArray,
                         flashSize: "keep",
@@ -241,7 +241,6 @@
                     flashBtn.disabled = false;
                 };
                 
-                // ArrayBufferとして読み込むように変更
                 reader.readAsArrayBuffer(blob);
             } catch (e) {
                 log(`エラー: ${e.message}`);
