@@ -99,7 +99,7 @@
         </div>
     </div>
 
-    <!-- esptool-js の読み込み（安定版CDNに変更） -->
+    <!-- esptool-js 安定版 (v0.5.2) の読み込み -->
     <script type="module">
         import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.5.2/bundle.js";
 
@@ -121,7 +121,6 @@
             consoleEl.scrollTop = consoleEl.scrollHeight;
         }
 
-        // ブラウザ対応チェック
         window.addEventListener('DOMContentLoaded', () => {
             if (!navigator.serial) {
                 log("⚠️ 警告: Web Serial非対応ブラウザです。Chrome/Edgeをご利用ください。");
@@ -131,7 +130,6 @@
             }
         });
 
-        // Web Bluetooth スキャン
         scanBtn.addEventListener('click', async () => {
             try {
                 if (!navigator.bluetooth) {
