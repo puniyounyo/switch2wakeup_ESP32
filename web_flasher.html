@@ -40,7 +40,7 @@
             color: #00ff00; 
             padding: 8px; 
             border-radius: 4px; 
-            height: 90px; 
+            height: 120px; 
             overflow-y: scroll; 
             font-family: monospace; 
             font-size: 11px; 
@@ -52,19 +52,19 @@
 <body>
 
     <div class="grid-container">
-        <!-- 左上: Bluetooth スキャン -->
+        <!-- 左上: シリアル接続 ＆ 検出デバイス選択 -->
         <div class="card">
-            <h2>🔍 1. Bluetooth 周辺スキャン</h2>
-            <p>周辺デバイスをスキャンし、Joy-ConやSwitchのMACを反映します。</p>
-            <button id="scanBtn">周辺デバイスをスキャン</button>
+            <h2>🔍 1. デバイススキャン＆接続</h2>
+            <p>1. ポート接続後、初回起動中のESP32から検出されたデバイスが自動リストアップされます。</p>
+            <button id="connectBtn">1. シリアルポート接続</button>
             
-            <label for="deviceSelect">検出されたデバイス:</label>
-            <select id="deviceSelect">
-                <option value="">-- デバイスを選択 --</option>
+            <label for="deviceSelect" style="margin-top: 8px;">検出されたNintendoデバイス:</label>
+            <select id="deviceSelect" size="4" style="height: 65px;">
+                <option value="">-- デバイスを接続して待機 --</option>
             </select>
             <div>
-                <button id="setJoyconBtn">Joy-Conに設定</button>
-                <button id="setSwitchBtn">Switch 2に設定</button>
+                <button id="setJoyconBtn">Joy-Conに反映</button>
+                <button id="setSwitchBtn">Switch 2に反映</button>
             </div>
         </div>
 
@@ -87,23 +87,24 @@
 
         <!-- 下部左: 書き込み制御 -->
         <div class="card">
-            <h2>🚀 3. 書き込み ＆ 設定転送</h2>
-            <button id="connectBtn">1. シリアルポート接続</button>
-            <button id="flashBtn" class="success" disabled>2. 書込 ＆ 設定送信</button>
+            <h2>🚀 3. ファームウェア書込 ＆ 設定転送</h2>
+            <p>設定値が正しいことを確認し、書き込みを実行してください。</p>
+            <button id="flashBtn" class="success" disabled>2. ファームウェア書込 ＆ 設定送信</button>
         </div>
 
         <!-- 下部右: ログ出力 -->
         <div class="card">
-            <h2>📊 ログ出力</h2>
+            <h2>📊 リアルタイムログ</h2>
             <pre id="console">待機中...</pre>
         </div>
     </div>
 
-    <!-- esptool-js 安定版 (v0.5.2) の読み込み -->
+    <!-- esptool-js 最新安定版 (v0.7.0) の読み込み -->
     <script type="module">
-        import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.5.2/bundle.js";
+        import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.7.0/bundle.js";
 
-        const scanBtn = document.getElementById('scanBtn');
+        const connectBtn = document.getElementById('connectBtn');
+        const flashBtn = document.getElementById('flashBtn');
         const deviceSelect = document.getElementById('deviceSelect');
         const setJoyconBtn = document.getElementById('setJoyconBtn');
         const setSwitchBtn = document.getElementById('setSwitchBtn');
@@ -111,10 +112,12 @@
         const joyconInput = document.getElementById('joycon_mac');
         const switchInput = document.getElementById('switch_mac');
         const pidInput = document.getElementById('joycon_pid');
-
-        const connectBtn = document.getElementById('connectBtn');
-        const flashBtn = document.getElementById('flashBtn');
         const consoleEl = document.getElementById('console');
+
+        let port, transport, espLoader;
+        let reader;
+        let keepReading = false;
+        let detectedDevices = {}; // 検出データを保持するマップ
 
         function log(text) {
             consoleEl.textContent += text + "\n";
@@ -130,53 +133,94 @@
             }
         });
 
-        scanBtn.addEventListener('click', async () => {
+        // シリアルポートからの受信データを監視してスキャン結果をパースするループ
+        async function readLoop() {
+            keepReading = true;
+            const textDecoder = new TextDecoderStream();
+            const readableStreamClosed = port.readable.pipeTo(textDecoder.writable);
+            reader = textDecoder.readable.getReader();
+
+            let buffer = "";
             try {
-                if (!navigator.bluetooth) {
-                    throw new Error("Web Bluetooth APIがサポートされていません。");
+                while (keepReading) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    if (value) {
+                        buffer += value;
+                        let lines = buffer.split("\n");
+                        buffer = lines.pop(); // 最後の不完全な行はバッファに残す
+
+                        for (let line of lines) {
+                            line = line.trim();
+                            log(line); // ログに出力
+
+                            // 統合ファームウェアからのスキャン出力をパース
+                            if (line.startsWith("MAC:")) {
+                                currentJcMac = line.substring(4);
+                            } else if (line.startsWith("SWITCH_MAC:")) {
+                                currentSwMac = line.substring(11);
+                            } else if (line.startsWith("PID:")) {
+                                currentPid = line.substring(4);
+                                
+                                // 1件分のデバイス情報が揃ったらセレクトボックスに追加
+                                if (currentJcMac && currentSwMac) {
+                                    addDeviceOption(currentJcMac, currentSwMac, currentPid);
+                                    currentJcMac = currentSwMac = currentPid = null;
+                                }
+                            }
+                        }
+                    }
                 }
-                log(">>> スキャン開始（ポップアップから選択）...");
-                const device = await navigator.bluetooth.requestDevice({
-                    acceptAllDevices: true,
-                    optionalServices: []
-                });
-
-                const deviceName = device.name || "Unknown";
-                const deviceId = device.id;
-                
-                const option = document.createElement('option');
-                option.value = deviceId;
-                option.textContent = `${deviceName} (${deviceId})`;
-                deviceSelect.appendChild(option);
-                
-                log(`発見: ${deviceName}`);
-            } catch (e) {
-                log(`スキャンエラー: ${e.message}`);
+            } catch (error) {
+                // 読み取りキャンセル時のエラーは無視
+            } finally {
+                reader.releaseLock();
             }
-        });
+        }
 
+        let currentJcMac, currentSwMac, currentPid;
+
+        function addDeviceOption(jc, sw, pid) {
+            const key = `${jc}|${sw}|${pid}`;
+            if (detectedDevices[key]) return; // 重複追加防止
+            detectedDevices[key] = { jc, sw, pid };
+
+            if (deviceSelect.options[0].value === "") {
+                deviceSelect.innerHTML = ""; // 初期メッセージをクリア
+            }
+
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = `JC: ${jc} / SW: ${sw} (${pid})`;
+            deviceSelect.appendChild(option);
+            log(`🎯 新しいNintendoデバイスを検出しました！`);
+        }
+
+        // リストで選択されたデバイスをフォームに反映
         setJoyconBtn.addEventListener('click', () => {
             const val = deviceSelect.value;
-            if (val) {
-                joyconInput.value = val.toUpperCase();
-                log(`Joy-Con MAC設定: ${val}`);
+            if (val && detectedDevices[val]) {
+                joyconInput.value = detectedDevices[val].jc;
+                pidInput.value = detectedDevices[val].pid;
+                log(`-> Joy-Con MAC & PID を反映しました: ${joyconInput.value}`);
             }
         });
 
         setSwitchBtn.addEventListener('click', () => {
             const val = deviceSelect.value;
-            if (val) {
-                switchInput.value = val.toUpperCase();
-                log(`Switch 2 MAC設定: ${val}`);
+            if (val && detectedDevices[val]) {
+                switchInput.value = val.sw;
+                log(`-> Switch 2 本体 MAC を反映しました: ${switchInput.value}`);
             }
         });
 
-        let port, transport, espLoader;
-
+        // 1. シリアルポート接続
         connectBtn.addEventListener('click', async () => {
             try {
                 log(">>> シリアルポート選択画面を開きます...");
                 port = await navigator.serial.requestPort();
+                
+                // 初回はフラッシュ書き込み前のリーダーを動作させないため、接続時はまずESPLoaderへ渡す
                 transport = new Transport(port);
                 
                 espLoader = new ESPLoader({
@@ -199,6 +243,7 @@
             }
         });
 
+        // 2. ファームウェア書込 ＆ 設定送信
         flashBtn.addEventListener('click', async () => {
             try {
                 flashBtn.disabled = true;
@@ -208,35 +253,29 @@
                 if (!response.ok) throw new Error("firmware.bin が同じフォルダに見つかりません。");
                 
                 const blob = await response.blob();
-                const reader = new FileReader();
+                const arrayBuffer = await blob.arrayBuffer();
                 
-                // readAsBinaryString を使ってesptool-jsが正しく処理できる形式で読み込む
-                reader.onload = async function(event) {
-                    const binaryString = event.target.result;
-
-                    const fileArray = [{ data: binaryString, address: 0x0000 }];
-                    
-                    await espLoader.writeFlash({
-                        fileArray: fileArray,
-                        flashSize: "keep",
-                        eraseAll: false,
-                        compress: true
-                    });
-                    
-                    log(">>> 書き込み完了。設定データを送信中...");
-                    await new Promise(r => setTimeout(r, 1000));
-                    
-                    const writer = port.writable.getWriter();
-                    const configStr = `CFG:${joyconInput.value},${switchInput.value},${pidInput.value}\n`;
-                    const encoder = new TextEncoder();
-                    await writer.write(encoder.encode(configStr));
-                    writer.releaseLock();
-
-                    log(">>> 設定送信完了！ESP32を再起動してください。");
-                    flashBtn.disabled = false;
-                };
+                const fileArray = [{ data: new Uint8Array(arrayBuffer), address: 0x0000 }];
                 
-                reader.readAsBinaryString(blob);
+                await espLoader.writeFlash({
+                    fileArray: fileArray,
+                    flashSize: "keep",
+                    eraseAll: false,
+                    compress: true
+                });
+                
+                log(">>> 書き込み完了。設定データを送信中...");
+                await new Promise(r => setTimeout(r, 1500));
+                
+                // 書き込み完了後にシリアルへ設定文字列を書き込む
+                const writer = port.writable.getWriter();
+                const configStr = `CFG:${joyconInput.value},${switchInput.value},${pidInput.value}\n`;
+                const encoder = new TextEncoder();
+                await writer.write(encoder.encode(configStr));
+                writer.releaseLock();
+
+                log(">>> 設定送信完了！ESP32が自動再起動します（次回から送信機モードになります）。");
+                flashBtn.disabled = false;
             } catch (e) {
                 log(`エラー: ${e.message}`);
                 flashBtn.disabled = false;
