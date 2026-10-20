@@ -59,9 +59,40 @@ static bool parseMacReverse(const char* macStr, uint8_t* outReversed) {
     return true;
 }
 
+// シリアルからの設定コマンド（CFG:...）をチェックして保存する堅牢な関数
+void checkAndSaveConfig() {
+    if (Serial.available()) {
+        String line = Serial.readStringUntil('\n');
+        line.trim();
+        line.replace("\r", ""); // 改行コードの揺れを排除
+
+        if (line.startsWith("CFG:")) {
+            // 形式: CFG:JoyConMAC,SwitchMAC,PID
+            String jc = line.substring(4, 21);
+            String sw = line.substring(22, 39);
+            String pid = line.substring(40);
+
+            preferences.begin("settings", false);
+            preferences.putString("jc_mac", jc);
+            preferences.putString("sw_mac", sw);
+            preferences.putString("pid", pid);
+            preferences.putInt("boot_flag", 1); // 次回から送信機モードへ移行
+            preferences.end();
+
+            Serial.println(">>> [CONFIG SAVED] Success! Rebooting...");
+            Serial.flush();
+            delay(500);
+            ESP.restart();
+        }
+    }
+}
+
 // スキャンコールバッククラス
 class ScanCallbacks : public NimBLEScanCallbacks {
     void onResult(const NimBLEAdvertisedDevice* device) override {
+        // スキャン中にシリアルから設定が来ていないか常時チェック
+        checkAndSaveConfig();
+
         const std::vector<uint8_t>& payload = device->getPayload();
         const uint8_t* data = payload.data();
         const size_t len = payload.size();
@@ -74,7 +105,6 @@ class ScanCallbacks : public NimBLEScanCallbacks {
         String address = device->getAddress().toString().c_str();
         address.toUpperCase();
 
-        // Webダッシュボードやシリアルモニターで認識しやすいフォーマットで出力
         Serial.println("--- DEVICE FOUND ---");
         Serial.printf("MAC:%s\n", address.c_str());
         if (isExpectedNintendoFormat(data, len)) {
@@ -106,33 +136,20 @@ void setup() {
 
     preferences.begin("settings", false);
     
-    // 起動直後のシリアルからの設定書き込み監視（0.5秒間待機）
+    // 起動直後のシリアルからの設定書き込み監視（1秒間待機：WEBからの送信をここで確実に拾う）
     unsigned long startWait = millis();
-    while (millis() - startWait < 500) {
-        if (Serial.available()) {
-            String line = Serial.readStringUntil('\n');
-            line.trim();
-            if (line.startsWith("CFG:")) {
-                // 形式: CFG:JoyConMAC,SwitchMAC,PID
-                preferences.putString("jc_mac", line.substring(4, 21));
-                preferences.putString("sw_mac", line.substring(22, 39));
-                preferences.putString("pid", line.substring(40));
-                preferences.putInt("boot_flag", 1); // 次回から送信機モードへ移行
-                Serial.println(">>> CONFIG SAVED SUCCESSFULLY! Rebooting...");
-                ESP.restart();
-            }
-        }
+    while (millis() - startWait < 1000) {
+        checkAndSaveConfig();
+        delay(10);
     }
 
     int bootFlag = preferences.getInt("boot_flag", 0);
+    preferences.end();
 
     if (bootFlag == 0) {
         // === 初回起動時: 強制的にスキャンモード ===
         Serial.println(">>> [初回起動] BLEスキャンモードを開始します...");
         
-        // スキャンに入った段階でフラグを1に更新（次回以降は通常送信機モードになる）
-        preferences.putInt("boot_flag", 1);
-
         NimBLEDevice::init("");
         NimBLEScan* scan = NimBLEDevice::getScan();
         scan->setScanCallbacks(&scanCallbacks, false);
@@ -141,20 +158,10 @@ void setup() {
         scan->setWindow(96);
         scan->start(0, false, true);
 
-        // スキャン中はシリアル経由の設定コマンド受信を常時待ち受け
+        // スキャン中は常にシリアルからの設定コマンド受信を監視し続ける
         while (true) {
-            if (Serial.available()) {
-                String line = Serial.readStringUntil('\n');
-                line.trim();
-                if (line.startsWith("CFG:")) {
-                    preferences.putString("jc_mac", line.substring(4, 21));
-                    preferences.putString("sw_mac", line.substring(22, 39));
-                    preferences.putString("pid", line.substring(40));
-                    Serial.println(">>> CONFIG SAVED! Rebooting...");
-                    ESP.restart();
-                }
-            }
-            delay(10);
+            checkAndSaveConfig();
+            delay(50);
         }
     } else {
         // === 2回目以降: 通常送信機モード ===
@@ -167,17 +174,24 @@ void setup() {
         }
 
         // 保存された設定の読み込み
+        preferences.begin("settings", true);
         String jcMacStr = preferences.getString("jc_mac", "AA:BB:CC:DD:EE:FF");
         String swMacStr = preferences.getString("sw_mac", "AA:BB:CC:DD:EE:FF");
         String pidStr = preferences.getString("pid", "0x2066");
+        preferences.end();
+
+        Serial.printf("[Loaded Config] JC: %s, SW: %s, PID: %s\n", jcMacStr.c_str(), swMacStr.c_str(), pidStr.c_str());
 
         uint16_t sourcePid = (uint16_t)strtol(pidStr.c_str(), NULL, 16);
 
-        // MACアドレス自動補正（ESP32のハードウェア仕様による +2 のズレを相殺）
+        // 【重要】Preferencesから読み込んだJoy-ConのMACアドレスをESP32に適用し、オフセット(-2)を反映
         uint8_t sourceMacBytes[6];
         if (parseMac(jcMacStr.c_str(), sourceMacBytes)) {
-            sourceMacBytes[5] -= 2;
-            esp_base_mac_addr_set(sourceMacBytes);
+            sourceMacBytes[5] -= 2; 
+            esp_err_t err = esp_base_mac_addr_set(sourceMacBytes);
+            if (err != ESP_OK) {
+                Serial.printf("Failed to set base MAC address: %d\n", err);
+            }
         }
 
         uint8_t targetReversed[6];
