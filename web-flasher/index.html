@@ -73,6 +73,7 @@
             <p>周辺のNintendoデバイスをスキャンし、ペアリング情報を抽出します。</p>
             <button id="connectScanBtn">① ポート接続 (スキャナー)</button>
             <button id="flashScanBtn" class="success" disabled>② BLE_Scanner.bin を書込</button>
+            <button id="reselectScanBtn" class="gray" disabled>②' ログが出ない場合: RST後にポートを選び直す</button>
 
             <label style="margin-top: 10px;">検出されたNintendoデバイス:</label>
             <select id="deviceSelect" size="4" style="height: 75px;">
@@ -166,6 +167,8 @@
         const flashScanBtn = document.getElementById('flashScanBtn');
         const deviceSelect = document.getElementById('deviceSelect');
         const setAllBtn = document.getElementById('setAllBtn');
+        const reselectScanBtn = document.getElementById('reselectScanBtn');
+        let scanRx = 0; // 再接続後にスキャナーから受信した文字数
 
         const connectTransBtn = document.getElementById('connectTransBtn');
         const flashTransBtn = document.getElementById('flashTransBtn');
@@ -363,10 +366,21 @@
 
                 log(">>> [スキャナー] 書き込み完了！リセットしてスキャンログの受信を開始します...");
                 const p = await resetAndReopen(scanLoader, scanTransport, scanPort, transPort ? [transPort] : []);
-                if (!p) throw new Error("ポートを開き直せませんでした。USBを抜き差しして最初からやり直してください。");
+                reselectScanBtn.disabled = false; // 保険: 常に手動の選び直しを使えるようにする
+                if (!p) {
+                    log("⚠️ 自動で開き直せませんでした。ESP32の RST ボタンを押してから「②' ポートを選び直す」を押してください。");
+                    return;
+                }
                 scanPort = p;
+                scanRx = 0;
                 startScanReading();
                 connectScanBtn.disabled = false; // 再接続可能に
+
+                setTimeout(() => {
+                    if (scanRx === 0) {
+                        log("⚠️ 4秒たっても ESP32 から何も届いていません（リセットされていない可能性）。ESP32の RST ボタンを押し、USBが再接続されたら「②' ポートを選び直す」を押してください。");
+                    }
+                }, 4000);
             } catch (e) {
                 log(`[書込エラー] ${e.message}`);
                 flashScanBtn.disabled = false;
@@ -376,6 +390,7 @@
         function startScanReading() {
             let curJc = null, curSw = null, curPid = null;
             scanReaderCtl = startReader(scanPort, {
+                onChunk: (text) => { scanRx += text.length; },
                 onLine: (line) => {
                     log(line);
                     if (line.startsWith("MAC:")) curJc = line.substring(4);
@@ -390,6 +405,28 @@
                 }
             });
         }
+
+        // 自動リセットが効かない場合: RSTボタン押下後にポートを選び直す
+        reselectScanBtn.addEventListener('click', async () => {
+            try {
+                log(">>> スキャナーのポートを選び直してください（RSTボタンを押した後は、ポートが新しくなっています）...");
+                if (scanReaderCtl) { await scanReaderCtl.stop(); scanReaderCtl = null; }
+                if (scanPort && (scanPort.readable || scanPort.writable)) {
+                    try { await scanPort.close(); } catch (e) {}
+                }
+                const p = await navigator.serial.requestPort();
+                await p.open({ baudRate: 115200 });
+                scanPort = p;
+                scanRx = 0;
+                await applySignals(scanPort);
+                startScanReading();
+                reselectScanBtn.disabled = true;
+                connectScanBtn.disabled = false;
+                log("✅ スキャナーのログ受信を開始しました。");
+            } catch (e) {
+                log(`[ポート選び直しエラー] ${e.message}`);
+            }
+        });
 
         function addDeviceOption(jc, sw, pid) {
             const key = `${jc}|${sw}|${pid}`;
