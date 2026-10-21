@@ -60,31 +60,30 @@
         <!-- 左側: スキャナー機能 -->
         <div class="card">
             <h2>🔍 1. スキャナー（scanner.bin）</h2>
-            <p>周辺のNintendoデバイスをスキャンし、MACアドレスを抽出します。</p>
+            <p>周辺のNintendoデバイスをスキャンし、ペアリング情報を抽出します。</p>
             <button id="connectScanBtn">① ポート接続 (スキャナー)</button>
             <button id="flashScanBtn" class="success" disabled>② scanner.bin を書込</button>
             
-            <label style="margin-top: 10px;">検出されたデバイス一覧:</label>
-            <select id="deviceSelect" size="4" style="height: 70px;">
+            <label style="margin-top: 10px;">検出されたNintendoデバイス:</label>
+            <select id="deviceSelect" size="4" style="height: 75px;">
                 <option value="">-- デバイス未検出 (待機中) --</option>
             </select>
             <div>
-                <button id="setJoyconBtn" class="warning">Joy-Conに転記 ➔</button>
-                <button id="setSwitchBtn" class="warning">Switch 2に転記 ➔</button>
+                <button id="setAllBtn" class="warning" style="width: 100%; margin-top: 8px;">選択したペア情報を右側に一括転記 ➔</button>
             </div>
         </div>
 
         <!-- 右側: 送信機書き込み機能 -->
         <div class="card">
             <h2>🚀 2. 送信機（transmitter.bin パッチ書込）</h2>
-            <p>MACアドレスを書き換えたうえで送信機ファームウェアを焼き込みます。</p>
+            <p>抽出されたMACアドレスを焼き込んだ送信機ファームウェアを作成します。</p>
             
             <div>
-                <label for="joycon_mac">Joy-Con MAC (正順):</label>
+                <label for="joycon_mac">Joy-Con MAC (送信元):</label>
                 <input type="text" id="joycon_mac" value="AA:BB:CC:DD:EE:FF">
             </div>
             <div>
-                <label for="switch_mac">Switch 2 本体 MAC (正順):</label>
+                <label for="switch_mac">Switch 2 本体 MAC (宛先):</label>
                 <input type="text" id="switch_mac" value="11:22:33:44:55:66">
             </div>
             
@@ -109,12 +108,10 @@
             consoleEl.scrollTop = consoleEl.scrollHeight;
         }
 
-        // DOM要素
         const connectScanBtn = document.getElementById('connectScanBtn');
         const flashScanBtn = document.getElementById('flashScanBtn');
         const deviceSelect = document.getElementById('deviceSelect');
-        const setJoyconBtn = document.getElementById('setJoyconBtn');
-        const setSwitchBtn = document.getElementById('setSwitchBtn');
+        const setAllBtn = document.getElementById('setAllBtn');
 
         const connectTransBtn = document.getElementById('connectTransBtn');
         const flashTransBtn = document.getElementById('flashTransBtn');
@@ -214,7 +211,7 @@
                     }
                 }
             } catch (e) {
-                // 終了時のエラー無視
+                // 終了時エラー無視
             }
         }
 
@@ -226,24 +223,20 @@
             if (deviceSelect.options[0].value === "") deviceSelect.innerHTML = "";
             const option = document.createElement('option');
             option.value = key;
-            option.textContent = `JC: ${jc} / SW: ${sw} (${pid})`;
+            option.textContent = `JC: ${jc} ➔ SW: ${sw}`;
             deviceSelect.appendChild(option);
-            log(`🎯 Nintendoデバイスを検出: JC=${jc}`);
+            log(`🎯 ペア情報を検出: Joy-Con(${jc}) / Switch 2(${sw})`);
         }
 
-        setJoyconBtn.addEventListener('click', () => {
+        // 一括転記ボタンの処理
+        setAllBtn.addEventListener('click', () => {
             const val = deviceSelect.value;
             if (val && detectedDevices[val]) {
                 joyconInput.value = detectedDevices[val].jc;
-                log(`-> 右側に Joy-Con MAC を転記: ${joyconInput.value}`);
-            }
-        });
-
-        setSwitchBtn.addEventListener('click', () => {
-            const val = deviceSelect.value;
-            if (val && detectedDevices[val]) {
                 switchInput.value = detectedDevices[val].sw;
-                log(`-> 右側に Switch 2 MAC を転記: ${switchInput.value}`);
+                log(`-> 右側にペア情報を一括転記しました:\n   Joy-Con MAC: ${joyconInput.value}\n   Switch 2 MAC: ${switchInput.value}`);
+            } else {
+                log("⚠️ リストからデバイスを選択してください。");
             }
         });
 
@@ -275,7 +268,6 @@
             }
         });
 
-        // バイナリ内の文字列を置換するヘルパー関数
         function patchBinaryString(uint8Array, targetStr, newStr) {
             if (targetStr.length !== newStr.length) {
                 throw new Error("置換前後の文字列長が一致しません。");
@@ -315,7 +307,6 @@
                 const arrayBuffer = await res.arrayBuffer();
                 let binData = new Uint8Array(arrayBuffer);
 
-                // 入力されたMACアドレスの検証 (17文字)
                 const newJc = joyconInput.value.trim();
                 const newSw = switchInput.value.trim();
 
@@ -324,15 +315,14 @@
                 }
 
                 log(`>>> バイナリパッチ適用中...`);
-                // プレースホルダー文字列 "AA:BB:CC:DD:EE:FF" と "11:22:33:44:55:66" を置換
                 const jcCount = patchBinaryString(binData, "AA:BB:CC:DD:EE:FF", newJc);
                 const swCount = patchBinaryString(binData, "11:22:33:44:55:66", newSw);
 
-                log(`- Joy-Con MAC 置換箇所: ${jcCount}箇所`);
-                log(`- Switch 2 MAC 置換箇所: ${swCount}箇所`);
+                log(`- Joy-Con MAC 置換: ${jcCount}箇所`);
+                log(`- Switch 2 MAC 置換: ${swCount}箇所`);
 
                 if (jcCount === 0 || swCount === 0) {
-                    log("⚠️ 警告: transmitter.bin 内のプレースホルダーが見つかりませんでした。ソースコード内で初期値が一致しているか確認してください。");
+                    log("⚠️ 警告: transmitter.bin 内のプレースホルダーが見つかりませんでした。");
                 }
 
                 log(">>> [送信機] カスタムバイナリの書き込み開始...");
@@ -343,7 +333,7 @@
                     compress: true
                 });
 
-                log("🎉 [送信機] カスタム送信機の書き込みが正常に完了しました！再起動して動作します。");
+                log("🎉 [送信機] カスタム送信機の書き込みが正常に完了しました！");
                 flashTransBtn.disabled = false;
             } catch (e) {
                 log(`[送信機書込エラー] ${e.message}`);
