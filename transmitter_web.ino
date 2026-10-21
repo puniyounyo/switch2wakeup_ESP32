@@ -30,18 +30,28 @@ static bool parseMacReverse(const char* macStr, uint8_t* outReversed) {
     return true;
 }
 
-// シリアルから設定を受け取って保存する関数
+// シリアルから設定を受け取って保存する関数（改行・空白の揺れを完璧に吸収する堅牢版）
 void checkAndSaveConfig() {
     if (Serial.available()) {
         String line = Serial.readStringUntil('\n');
         line.trim();
-        line.replace("\r", "");
+        line.replace("\r", ""); // 改行コードの差異を排除
+
+        if (line.length() > 0) {
+            Serial.printf("Received: [%s]\n", line.c_str());
+        }
 
         if (line.startsWith("CFG:")) {
             // 形式: CFG:JoyConMAC,SwitchMAC,PID
+            // 例: CFG:AA:BB:CC:DD:EE:FF,11:22:33:44:55:66,0x2066
             String jc = line.substring(4, 21);
             String sw = line.substring(22, 39);
             String pid = line.substring(40);
+
+            // 前後の空白やゴミをトリム
+            jc.trim();
+            sw.trim();
+            pid.trim();
 
             preferences.begin("settings", false);
             preferences.putString("jc_mac", jc);
@@ -75,10 +85,10 @@ void setup() {
         Serial.println(">>> [CONFIG MODE] Please send CFG:JC_MAC,SW_MAC,PID from Web UI.");
         while (true) {
             checkAndSaveConfig();
-            delay(50);
+            delay(20);
         }
     } else {
-        // 通常送信機モード
+        // 通常送信機モード（ボタン押下によるウェイクアップ時のみ送信）
         esp_sleep_wakeup_cause_t wakeup_cause = esp_sleep_get_wakeup_cause();
         if (wakeup_cause != ESP_SLEEP_WAKEUP_GPIO) {
             esp_deep_sleep_enable_gpio_wakeup(1ULL << BUTTON_PIN, ESP_GPIO_WAKEUP_GPIO_LOW);
