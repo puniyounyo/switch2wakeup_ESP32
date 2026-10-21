@@ -6,13 +6,13 @@
     <title>Switch 2 Wakeup - Flasher & Configurator</title>
     <style>
         * { box-sizing: border-box; }
-        body { 
-            font-family: sans-serif; 
-            max-width: 1200px; 
-            margin: 10px auto; 
-            padding: 10px; 
-            background: #f4f4f9; 
-            color: #333; 
+        body {
+            font-family: sans-serif;
+            max-width: 1200px;
+            margin: 10px auto;
+            padding: 10px;
+            background: #f4f4f9;
+            color: #333;
             font-size: 13px;
         }
         h2 { margin: 0 0 6px 0; color: #007bff; font-size: 15px; }
@@ -21,11 +21,11 @@
             grid-template-columns: 1fr 1fr;
             gap: 12px;
         }
-        .card { 
-            background: #fff; 
-            padding: 12px; 
-            border-radius: 6px; 
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+        .card {
+            background: #fff;
+            padding: 12px;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         .full-width { grid-column: span 2; }
         label { display: block; margin-top: 6px; font-weight: bold; font-size: 11px; }
@@ -40,18 +40,28 @@
         button.warning:hover { background: #e0a800; }
         button.danger { background: #dc3545; }
         button.danger:hover { background: #c82333; }
-        pre { 
-            background: #1e1e1e; 
-            color: #00ff00; 
-            padding: 8px; 
-            border-radius: 4px; 
-            height: 140px; 
-            overflow-y: scroll; 
-            font-family: monospace; 
-            font-size: 11px; 
+        button.gray { background: #6c757d; }
+        button.gray:hover { background: #545b62; }
+        pre {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 8px;
+            border-radius: 4px;
+            height: 220px;
+            overflow-y: scroll;
+            font-family: monospace;
+            font-size: 11px;
             margin: 0;
+            white-space: pre-wrap;
+            word-break: break-all;
         }
         p { margin: 2px 0; font-size: 11px; color: #666; }
+        .row { display: flex; gap: 8px; }
+        .row > div { flex: 1; }
+        .check { display: flex; align-items: center; gap: 4px; font-weight: normal; margin-top: 6px; }
+        .check input { margin: 0; }
+        details { margin-top: 8px; border-top: 1px solid #eee; padding-top: 4px; }
+        summary { cursor: pointer; font-size: 11px; font-weight: bold; color: #555; }
     </style>
 </head>
 <body>
@@ -62,8 +72,8 @@
             <h2>🔍 1. スキャナー（BLE_Scanner.bin）</h2>
             <p>周辺のNintendoデバイスをスキャンし、ペアリング情報を抽出します。</p>
             <button id="connectScanBtn">① ポート接続 (スキャナー)</button>
-            <button id="flashScanBtn" class="success" disabled>②  を書込</button>
-            
+            <button id="flashScanBtn" class="success" disabled>② BLE_Scanner.bin を書込</button>
+
             <label style="margin-top: 10px;">検出されたNintendoデバイス:</label>
             <select id="deviceSelect" size="4" style="height: 75px;">
                 <option value="">-- デバイス未検出 (待機中) --</option>
@@ -76,11 +86,12 @@
         <!-- 右側: 送信機書き込み ＆ 設定転送機能 -->
         <div class="card">
             <h2>🚀 2. 送信機（transmitter_web.bin 書込 ＆ 設定）</h2>
-            <p>ファームウェア書込後、自動再接続して設定を転送します。</p>
-            
+            <p>ファームウェア書込 → リセット → 通常シリアルで開き直し → 設定を転送します。</p>
+
             <button id="connectTransBtn" style="margin-top: 6px;">① ポート接続 (送信機)</button>
             <button id="flashTransBtn" class="danger" disabled>② transmitter_web.bin 書込 ＆ 自動再接続</button>
-            
+            <button id="reselectBtn" class="gray" disabled>②' 自動再接続に失敗した場合: ポートを選び直す</button>
+
             <div style="margin-top: 10px; border-top: 1px solid #eee; padding-top: 4px;">
                 <div>
                     <label for="joycon_mac">Joy-Con MAC (送信元):</label>
@@ -95,8 +106,37 @@
                     <input type="text" id="joycon_pid" value="0x2066">
                 </div>
             </div>
-            
+
+            <label class="check"><input type="checkbox" id="autoSend" checked> 「CONFIG MODE」を受信したら自動で設定を送る（③を押した後に有効）</label>
             <button id="sendConfigBtn" class="success" disabled>③ 設定送信 ＆ 完了</button>
+
+            <details>
+                <summary>🛠 詳細設定 / 手動送信（切り分け用）</summary>
+                <div class="row">
+                    <div>
+                        <label for="eolSelect">改行コード:</label>
+                        <select id="eolSelect">
+                            <option value="\n" selected>LF (\n)</option>
+                            <option value="\r\n">CR+LF (\r\n)</option>
+                            <option value="\r">CR (\r)</option>
+                            <option value="">なし</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="sigSelect">open後のDTR/RTS:</label>
+                        <select id="sigSelect">
+                            <option value="none" selected>触らない (既定)</option>
+                            <option value="00">DTR=0, RTS=0</option>
+                            <option value="10">DTR=1, RTS=0</option>
+                            <option value="11">DTR=1, RTS=1</option>
+                        </select>
+                    </div>
+                </div>
+                <label class="check"><input type="checkbox" id="perChar"> 1文字ずつ送る（5ms間隔）</label>
+                <label for="manualText">手動送信（Arduino IDEのシリアルモニタ相当）:</label>
+                <input type="text" id="manualText" value="CFG:AA:BB:CC:DD:EE:FF,11:22:33:44:55:66,0x2066">
+                <button id="manualSendBtn" class="gray" disabled>この文字列を送信</button>
+            </details>
         </div>
 
         <!-- 下部: 共通ログ出力 -->
@@ -106,14 +146,20 @@
         </div>
     </div>
 
-    <!-- esptool-js v0.7.0 の読み込み -->
+    <!-- esptool-js の読み込み -->
     <script type="module">
         import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.7.0/bundle.js";
 
+        // ===== 共通ユーティリティ =====
         const consoleEl = document.getElementById('console');
         function log(text) {
             consoleEl.textContent += text + "\n";
             consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+        const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+        if (!("serial" in navigator)) {
+            log("⚠️ このブラウザは Web Serial API に対応していません。Chrome / Edge を使ってください。");
         }
 
         const connectScanBtn = document.getElementById('connectScanBtn');
@@ -123,23 +169,157 @@
 
         const connectTransBtn = document.getElementById('connectTransBtn');
         const flashTransBtn = document.getElementById('flashTransBtn');
+        const reselectBtn = document.getElementById('reselectBtn');
         const sendConfigBtn = document.getElementById('sendConfigBtn');
-        
+        const manualSendBtn = document.getElementById('manualSendBtn');
+
         const joyconInput = document.getElementById('joycon_mac');
         const switchInput = document.getElementById('switch_mac');
         const pidInput = document.getElementById('joycon_pid');
+        const autoSendChk = document.getElementById('autoSend');
+        const eolSelect = document.getElementById('eolSelect');
+        const sigSelect = document.getElementById('sigSelect');
+        const perCharChk = document.getElementById('perChar');
+        const manualText = document.getElementById('manualText');
 
-        let scanPort, scanTransport, scanLoader, scanReader, keepScanning = false;
-        let transPort, transTransport, transLoader;
+        let scanPort = null, scanTransport = null, scanLoader = null, scanReaderCtl = null;
+        let transPort = null, transTransport = null, transLoader = null, transReaderCtl = null;
         let detectedDevices = {};
 
+        // ===== 行リーダー（TextDecoderStream を使わず、止められる形で実装）=====
+        // onChunk(text): 受信テキスト断片（プロンプト検出用）
+        // onLine(line):  改行区切りの1行
+        function startReader(port, { onLine, onChunk }) {
+            const reader = port.readable.getReader();
+            const decoder = new TextDecoder();
+            let stopped = false;
+            let buf = "";
+
+            (async () => {
+                try {
+                    while (!stopped) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        if (!value) continue;
+                        const text = decoder.decode(value, { stream: true });
+                        if (onChunk) onChunk(text);
+                        buf += text;
+                        const parts = buf.split(/\r?\n/);
+                        buf = parts.pop();
+                        for (const p of parts) {
+                            const line = p.replace(/\r/g, "").trim();
+                            if (line.length && onLine) onLine(line);
+                        }
+                    }
+                } catch (e) {
+                    if (!stopped) log(`[受信終了] ${e.message}`);
+                } finally {
+                    try { reader.releaseLock(); } catch (e) {}
+                }
+            })();
+
+            return {
+                async stop() {
+                    stopped = true;
+                    try { await reader.cancel(); } catch (e) {}
+                    try { reader.releaseLock(); } catch (e) {}
+                }
+            };
+        }
+
+        // ===== 書込後: リセット → 解放 → 通常シリアルとして開き直す =====
+        // ESP32-C3 の USB-Serial/JTAG はリセット時にUSBが再列挙され、
+        // 元の SerialPort オブジェクトが使えなくなることがあるため、
+        // getPorts() で同じVID/PIDのポートを探し直す。
+        async function resetAndReopen(loader, transport, port, excludePorts = []) {
+            // 1) アプリ起動のためのリセット
+            try {
+                if (typeof loader.after === "function") {
+                    await loader.after();
+                } else if (typeof loader.hardReset === "function") {
+                    await loader.hardReset();
+                }
+                log("-> ハードリセットを実行しました");
+            } catch (e) {
+                log(`[リセット警告] ${e.message}`);
+            }
+
+            // 2) esptool-js が握っているポートを解放
+            try { await transport.disconnect(); } catch (e) {}
+            try { await port.close(); } catch (e) {}
+
+            // 3) 再起動 / 再列挙を待ちつつ、開き直しを試みる
+            await sleep(1500);
+            const oldInfo = port.getInfo ? port.getInfo() : {};
+            let usePort = null;
+
+            for (let attempt = 1; attempt <= 8 && !usePort; attempt++) {
+                // (a) 元のポートをそのまま開く
+                try {
+                    await port.open({ baudRate: 115200 });
+                    usePort = port;
+                    break;
+                } catch (e) {
+                    // 既に開いている場合はそれを使う
+                    if (e.name === "InvalidStateError" && port.readable) {
+                        usePort = port;
+                        break;
+                    }
+                }
+                // (b) 再列挙された同一VID/PIDのポートを探す
+                try {
+                    const ports = await navigator.serial.getPorts();
+                    const cands = ports.filter(p => {
+                        if (p === port || excludePorts.includes(p)) return false;
+                        if (p.readable || p.writable) return false;
+                        const i = p.getInfo();
+                        return i.usbVendorId === oldInfo.usbVendorId &&
+                               i.usbProductId === oldInfo.usbProductId;
+                    });
+                    if (cands.length === 1) {
+                        await cands[0].open({ baudRate: 115200 });
+                        usePort = cands[0];
+                        log("-> USB再列挙を検出: 新しいポートに切り替えました");
+                        break;
+                    }
+                } catch (e) {}
+                log(`... ポート再オープン待機中 (${attempt}/8)`);
+                await sleep(800);
+            }
+
+            if (!usePort) return null;
+
+            // 4) DTR/RTS の明示設定（既定は触らない）
+            await applySignals(usePort);
+            return usePort;
+        }
+
+        async function applySignals(port) {
+            const mode = sigSelect.value;
+            if (mode === "none") return;
+            try {
+                await port.setSignals({
+                    dataTerminalReady: mode[0] === "1",
+                    requestToSend: mode[1] === "1"
+                });
+                log(`-> DTR=${mode[0]}, RTS=${mode[1]} を設定`);
+            } catch (e) {
+                log(`[シグナル設定エラー] ${e.message}`);
+            }
+        }
+
+        // ================================================================
         // 1. スキャナー側ロジック
+        // ================================================================
         connectScanBtn.addEventListener('click', async () => {
             try {
                 log(">>> [スキャナー] シリアルポートを選択してください...");
+                if (scanReaderCtl) { await scanReaderCtl.stop(); scanReaderCtl = null; }
+                if (scanPort && scanPort.readable) { try { await scanPort.close(); } catch (e) {} }
+
                 scanPort = await navigator.serial.requestPort();
                 scanTransport = new Transport(scanPort);
-                
+
                 scanLoader = new ESPLoader({
                     transport: scanTransport,
                     baudrate: 115200,
@@ -162,11 +342,11 @@
         flashScanBtn.addEventListener('click', async () => {
             try {
                 flashScanBtn.disabled = true;
-                log(">>> [スキャナー]  書き込み中...");
+                log(">>> [スキャナー] BLE_Scanner.bin 書き込み中...");
 
-                const res = await fetch("");
-                if (!res.ok) throw new Error(" が見つかりません。");
-                
+                const res = await fetch("BLE_Scanner.bin");
+                if (!res.ok) throw new Error("BLE_Scanner.bin が見つかりません。");
+
                 const arrayBuffer = await res.arrayBuffer();
                 await scanLoader.writeFlash({
                     fileArray: [{ data: new Uint8Array(arrayBuffer), address: 0x0000 }],
@@ -174,52 +354,35 @@
                     eraseAll: false,
                     compress: true
                 });
-                
-                log(">>> [スキャナー] 書き込み完了！スキャンログの受信を開始します...");
-                await new Promise(r => setTimeout(r, 1500));
+
+                log(">>> [スキャナー] 書き込み完了！リセットしてスキャンログの受信を開始します...");
+                const p = await resetAndReopen(scanLoader, scanTransport, scanPort, transPort ? [transPort] : []);
+                if (!p) throw new Error("ポートを開き直せませんでした。USBを抜き差しして最初からやり直してください。");
+                scanPort = p;
                 startScanReading();
+                connectScanBtn.disabled = false; // 再接続可能に
             } catch (e) {
                 log(`[書込エラー] ${e.message}`);
                 flashScanBtn.disabled = false;
             }
         });
 
-        async function startScanReading() {
-            if (keepScanning) return;
-            keepScanning = true;
-            const textDecoder = new TextDecoderStream();
-            scanPort.readable.pipeTo(textDecoder.writable);
-            scanReader = textDecoder.readable.getReader();
-
-            let buffer = "";
+        function startScanReading() {
             let curJc = null, curSw = null, curPid = null;
-
-            try {
-                while (keepScanning) {
-                    const { value, done } = await scanReader.read();
-                    if (done) break;
-                    if (value) {
-                        buffer += value;
-                        let lines = buffer.split("\n");
-                        buffer = lines.pop();
-
-                        for (let line of lines) {
-                            line = line.trim();
-                            log(line);
-
-                            if (line.startsWith("MAC:")) curJc = line.substring(4);
-                            else if (line.startsWith("SWITCH_MAC:")) curSw = line.substring(11);
-                            else if (line.startsWith("PID:")) {
-                                curPid = line.substring(4);
-                                if (curJc && curSw) {
-                                    addDeviceOption(curJc, curSw, curPid);
-                                    curJc = curSw = curPid = null;
-                                }
-                            }
+            scanReaderCtl = startReader(scanPort, {
+                onLine: (line) => {
+                    log(line);
+                    if (line.startsWith("MAC:")) curJc = line.substring(4);
+                    else if (line.startsWith("SWITCH_MAC:")) curSw = line.substring(11);
+                    else if (line.startsWith("PID:")) {
+                        curPid = line.substring(4);
+                        if (curJc && curSw) {
+                            addDeviceOption(curJc, curSw, curPid);
+                            curJc = curSw = curPid = null;
                         }
                     }
                 }
-            } catch (e) {}
+            });
         }
 
         function addDeviceOption(jc, sw, pid) {
@@ -247,13 +410,101 @@
             }
         });
 
+        // ================================================================
         // 2. 送信機側ロジック
+        // ================================================================
+        let pendingCfg = null;      // 送信予約中のCFG文字列
+        let cfgSentCount = 0;       // 送信済み回数
+        let promptSeenAfterSend = 0;
+        let chunkTail = "";
+
+        function getEol() { return eolSelect.value; }
+
+        // 送信（毎回 getWriter → releaseLock。ロック残りを防ぐ）
+        async function writeText(text) {
+            if (!transPort || !transPort.writable) throw new Error("ポートが開いていません。");
+            const writer = transPort.writable.getWriter();
+            try {
+                const enc = new TextEncoder();
+                if (perCharChk.checked) {
+                    for (const ch of text) {
+                        await writer.write(enc.encode(ch));
+                        await sleep(5);
+                    }
+                } else {
+                    await writer.write(enc.encode(text));
+                }
+            } finally {
+                writer.releaseLock();
+            }
+        }
+
+        function buildCfg() {
+            const jc = joyconInput.value.trim();
+            const sw = switchInput.value.trim();
+            const pid = pidInput.value.trim();
+            const macRe = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/;
+            if (!macRe.test(jc)) throw new Error(`Joy-Con MAC の形式が不正です: ${jc}`);
+            if (!macRe.test(sw)) throw new Error(`Switch MAC の形式が不正です: ${sw}`);
+            if (!/^0x[0-9A-Fa-f]{1,4}$/.test(pid)) throw new Error(`PID の形式が不正です(例 0x2066): ${pid}`);
+            return `CFG:${jc},${sw},${pid}`;
+        }
+
+        async function sendCfgNow(reason) {
+            if (!pendingCfg) return;
+            try {
+                const payload = pendingCfg + getEol();
+                const shown = payload.replace(/\r/g, "\\r").replace(/\n/g, "\\n");
+                log(`-> 送信(${reason}): ${shown}`);
+                await writeText(payload);
+                cfgSentCount++;
+                promptSeenAfterSend = 0;
+                log("   送信完了。この後のESP32の応答を確認してください。");
+            } catch (e) {
+                log(`[設定送信エラー] ${e.message}`);
+            }
+        }
+
+        function startTransReading() {
+            chunkTail = "";
+            transReaderCtl = startReader(transPort, {
+                onLine: (line) => log(`[ESP32] ${line}`),
+                onChunk: (text) => {
+                    // 改行待ちをせずに「CONFIG MODE」を検出する
+                    chunkTail = (chunkTail + text).slice(-300);
+                    if (chunkTail.includes("CONFIG MODE")) {
+                        chunkTail = "";
+                        if (cfgSentCount > 0) {
+                            promptSeenAfterSend++;
+                            log("⚠️ 送信後に再び CONFIG MODE を受信しました。ESP32が再起動した可能性があります（DTR/RTS設定を見直してください）。");
+                        }
+                        if (pendingCfg && autoSendChk.checked) {
+                            // ファームが確実に待ち受けに入るのを少しだけ待つ
+                            setTimeout(() => sendCfgNow("プロンプト検出で自動送信"), 300);
+                        }
+                    }
+                }
+            });
+        }
+
+        async function closeTransSerial() {
+            if (transReaderCtl) { await transReaderCtl.stop(); transReaderCtl = null; }
+            if (transPort && (transPort.readable || transPort.writable)) {
+                try { await transPort.close(); } catch (e) {}
+            }
+        }
+
         connectTransBtn.addEventListener('click', async () => {
             try {
                 log(">>> [送信機] 送信機用のESP32ポートを選択してください...");
+                await closeTransSerial();
+                pendingCfg = null; cfgSentCount = 0;
+                sendConfigBtn.disabled = true;
+                manualSendBtn.disabled = true;
+
                 transPort = await navigator.serial.requestPort();
                 transTransport = new Transport(transPort);
-                
+
                 transLoader = new ESPLoader({
                     transport: transTransport,
                     baudrate: 115200,
@@ -273,88 +524,86 @@
             }
         });
 
-// ---- 書込 ＆ 自動再接続 ----
-flashTransBtn.addEventListener('click', async () => {
-    try {
-        flashTransBtn.disabled = true;
-        log(">>> [送信機] transmitter_web.bin 書き込み中...");
+        function onTransReady() {
+            log("✅ 再接続に成功しました！ログに「CONFIG MODE」が出たら、「③ 設定送信 ＆ 完了」を押してください。");
+            startTransReading();
+            sendConfigBtn.disabled = false;
+            manualSendBtn.disabled = false;
+            connectTransBtn.disabled = false; // 別の個体 / 再書込のため再接続可能に
+        }
 
-        const res = await fetch("transmitter_web.bin");
-        if (!res.ok) throw new Error("transmitter_web.bin が見つかりません。");
-        const arrayBuffer = await res.arrayBuffer();
+        // 書き込み ＆ 自動再接続
+        flashTransBtn.addEventListener('click', async () => {
+            try {
+                flashTransBtn.disabled = true;
+                log(">>> [送信機] transmitter_web.bin 書き込み中...");
 
-        // esptool-js 0.7.0 は fileArray の data に「バイナリ文字列」を要求する版もあるため要確認
-        await transLoader.writeFlash({
-            fileArray: [{ data: new Uint8Array(arrayBuffer), address: 0x0000 }],
-            flashSize: "keep",
-            eraseAll: false,
-            compress: true
+                const res = await fetch("transmitter_web.bin");
+                if (!res.ok) throw new Error("transmitter_web.bin が見つかりません。");
+
+                const arrayBuffer = await res.arrayBuffer();
+                await transLoader.writeFlash({
+                    fileArray: [{ data: new Uint8Array(arrayBuffer), address: 0x0000 }],
+                    flashSize: "keep",
+                    eraseAll: false,
+                    compress: true
+                });
+
+                log(">>> [送信機] 書き込み完了！リセットして通常シリアルに開き直します...");
+                const p = await resetAndReopen(transLoader, transTransport, transPort, scanPort ? [scanPort] : []);
+
+                if (!p) {
+                    log("⚠️ 自動で開き直せませんでした（USB再列挙の可能性）。「②' ポートを選び直す」を押して、送信機のポートを選択してください。");
+                    reselectBtn.disabled = false;
+                    return;
+                }
+                transPort = p;
+                onTransReady();
+            } catch (e) {
+                log(`[書込・自動再接続エラー] ${e.message}`);
+                flashTransBtn.disabled = false;
+            }
         });
 
-        log(">>> 書き込み完了。ハードリセットします...");
-        await transLoader.after();          // ★ これでアプリが起動する
-
-        // ESPLoader/Transport が握っているポートを完全に解放
-        try { await transTransport.disconnect(); } catch (e) {}
-        try { await transPort.close(); } catch (e) {}   // 既に閉じていても無視
-
-        // ブートログが落ち着くまで待つ
-        await new Promise(r => setTimeout(r, 2500));
-
-        // 通常のシリアルとして開き直す
-        await transPort.open({ baudRate: 115200 });
-        startTransReading();                // ★ 受信ログを表示（後述）
-
-        log("✅ 再接続OK。「③ 設定送信」を押してください。");
-        sendConfigBtn.disabled = false;
-    } catch (e) {
-        log(`[書込・再接続エラー] ${e.message}`);
-        flashTransBtn.disabled = false;
-    }
-});
-
-// ---- 送信機からの応答を受信して表示 ----
-async function startTransReading() {
-    const decoder = new TextDecoderStream();
-    transPort.readable.pipeTo(decoder.writable).catch(() => {});
-    const reader = decoder.readable.getReader();
-    (async () => {
-        let buf = "";
-        try {
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                buf += value;
-                const lines = buf.split("\n");
-                buf = lines.pop();
-                lines.forEach(l => log("[ESP32] " + l.trim()));
+        // 自動再接続に失敗した場合の手動選び直し（ユーザー操作が必要）
+        reselectBtn.addEventListener('click', async () => {
+            try {
+                log(">>> 送信機のポートを選び直してください（書込後はポート名が変わっている場合があります）...");
+                const p = await navigator.serial.requestPort();
+                await p.open({ baudRate: 115200 });
+                transPort = p;
+                await applySignals(transPort);
+                reselectBtn.disabled = true;
+                onTransReady();
+            } catch (e) {
+                log(`[ポート選び直しエラー] ${e.message}`);
             }
-        } catch (e) {}
-    })();
-}
+        });
 
-// ---- 設定送信 ----
-sendConfigBtn.addEventListener('click', async () => {
-    let writer;
-    try {
-        log(">>> 設定データを転送中...");
-        const cfg = `CFG:${joyconInput.value.trim()},${switchInput.value.trim()},${pidInput.value.trim()}\n`;
-        writer = transPort.writable.getWriter();
-        const enc = new TextEncoder();
+        // 設定送信ステップ
+        sendConfigBtn.addEventListener('click', async () => {
+            try {
+                pendingCfg = buildCfg();
+                log(">>> [送信機] 設定データを転送します...");
+                await sendCfgNow("手動ボタン");
+                if (autoSendChk.checked) {
+                    log("   （自動送信ON: この後 CONFIG MODE を受信した場合も、もう一度送ります）");
+                }
+            } catch (e) {
+                log(`[設定送信エラー] ${e.message}`);
+            }
+        });
 
-        // 取りこぼし対策: 3回、間隔をあけて送る
-        for (let i = 0; i < 3; i++) {
-            await writer.write(enc.encode(cfg));
-            log(`-> 送信(${i + 1}/3): ${cfg.trim()}`);
-            await new Promise(r => setTimeout(r, 500));
-        }
-        log("🎉 送信完了。ESP32側の応答ログを確認してください。");
-    } catch (e) {
-        log(`[設定送信エラー] ${e.message}`);
-    } finally {
-        if (writer) writer.releaseLock();
-    }
-});
+        // 手動送信（Arduino IDE のシリアルモニタ相当）
+        manualSendBtn.addEventListener('click', async () => {
+            try {
+                const payload = manualText.value + getEol();
+                log(`-> 手動送信: ${payload.replace(/\r/g, "\\r").replace(/\n/g, "\\n")}`);
+                await writeText(payload);
+            } catch (e) {
+                log(`[手動送信エラー] ${e.message}`);
+            }
+        });
     </script>
 </body>
 </html>
