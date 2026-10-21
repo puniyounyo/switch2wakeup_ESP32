@@ -232,17 +232,8 @@
         // 元の SerialPort オブジェクトが使えなくなることがあるため、
         // getPorts() で同じVID/PIDのポートを探し直す。
         async function resetAndReopen(loader, transport, port, excludePorts = []) {
-            // 1) アプリ起動のためのリセット
-            try {
-                if (typeof loader.after === "function") {
-                    await loader.after();
-                } else if (typeof loader.hardReset === "function") {
-                    await loader.hardReset();
-                }
-                log("-> ハードリセットを実行しました");
-            } catch (e) {
-                log(`[リセット警告] ${e.message}`);
-            }
+            // 1) アプリ起動のためのリセット（DTR/RTSを直接操作する）
+            await pulseReset(port);
 
             // 2) esptool-js が握っているポートを解放
             try { await transport.disconnect(); } catch (e) {}
@@ -292,6 +283,21 @@
             // 4) DTR/RTS の明示設定（既定は触らない）
             await applySignals(usePort);
             return usePort;
+        }
+
+        // DTR=0 のまま RTS を 0→1→0 と動かす（EN をLOWにしてから離す）。
+        // ESP32-C3 の USB-Serial/JTAG でも、UART変換チップ搭載ボードでも
+        // 「通常起動（IO9=HIGH）でのリセット」になる。
+        async function pulseReset(port) {
+            const set = (dtr, rts) => port.setSignals({ dataTerminalReady: dtr, requestToSend: rts });
+            try {
+                await set(false, false); await sleep(100);
+                await set(false, true);  await sleep(250);  // リセット状態
+                await set(false, false); await sleep(100);  // 解除 → アプリ起動
+                log("-> DTR/RTS によるリセット信号を送りました");
+            } catch (e) {
+                log(`[リセット信号エラー] ${e.message}`);
+            }
         }
 
         async function applySignals(port) {
@@ -417,6 +423,7 @@
         let cfgSentCount = 0;       // 送信済み回数
         let promptSeenAfterSend = 0;
         let chunkTail = "";
+        let rxTotal = 0;            // 再接続後に ESP32 から受信した文字数
 
         function getEol() { return eolSelect.value; }
 
@@ -470,6 +477,7 @@
             transReaderCtl = startReader(transPort, {
                 onLine: (line) => log(`[ESP32] ${line}`),
                 onChunk: (text) => {
+                    rxTotal += text.length;
                     // 改行待ちをせずに「CONFIG MODE」を検出する
                     chunkTail = (chunkTail + text).slice(-300);
                     if (chunkTail.includes("CONFIG MODE")) {
@@ -552,13 +560,20 @@
                 log(">>> [送信機] 書き込み完了！リセットして通常シリアルに開き直します...");
                 const p = await resetAndReopen(transLoader, transTransport, transPort, scanPort ? [scanPort] : []);
 
+                reselectBtn.disabled = false; // 保険: 常に手動の選び直しを使えるようにする
                 if (!p) {
-                    log("⚠️ 自動で開き直せませんでした（USB再列挙の可能性）。「②' ポートを選び直す」を押して、送信機のポートを選択してください。");
-                    reselectBtn.disabled = false;
+                    log("⚠️ 自動で開き直せませんでした（USB再列挙の可能性）。ESP32の RST ボタンを押してから「②' ポートを選び直す」を押し、送信機のポートを選択してください。");
                     return;
                 }
                 transPort = p;
+                rxTotal = 0;
                 onTransReady();
+
+                setTimeout(() => {
+                    if (rxTotal === 0) {
+                        log("⚠️ 4秒たっても ESP32 から何も届いていません（リセットされていない可能性）。ESP32の RST ボタンを押し、USBが再接続されたら「②' ポートを選び直す」を押してください。");
+                    }
+                }, 4000);
             } catch (e) {
                 log(`[書込・自動再接続エラー] ${e.message}`);
                 flashTransBtn.disabled = false;
@@ -568,10 +583,12 @@
         // 自動再接続に失敗した場合の手動選び直し（ユーザー操作が必要）
         reselectBtn.addEventListener('click', async () => {
             try {
-                log(">>> 送信機のポートを選び直してください（書込後はポート名が変わっている場合があります）...");
+                log(">>> 送信機のポートを選び直してください（RSTボタンを押した後は、ポートが新しくなっています）...");
+                await closeTransSerial();   // 古いポート/リーダーを先に解放
                 const p = await navigator.serial.requestPort();
                 await p.open({ baudRate: 115200 });
                 transPort = p;
+                rxTotal = 0;
                 await applySignals(transPort);
                 reselectBtn.disabled = true;
                 onTransReady();
