@@ -1,5 +1,7 @@
 https://puniyounyo.github.io/switch2wakeup_ESP32/web_flasher.html
 
+https://puniyounyo.github.io/switch2wakeup_ESP32/web_flasher/index.html
+
 # Nintendo Switch 2 Wake Button
 ### ESP32-C3 Deep Sleep版 超低消費電力 起動リモコン
 
