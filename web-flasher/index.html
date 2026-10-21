@@ -1,671 +1,340 @@
 <!DOCTYPE html>
-
 <html lang="ja">
-
 <head>
-
     <meta charset="UTF-8">
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Switch 2 Wakeup - Flasher & Configurator</title>
-
     <style>
-
         * { box-sizing: border-box; }
-
         body { 
-
             font-family: sans-serif; 
-
             max-width: 1200px; 
-
             margin: 10px auto; 
-
             padding: 10px; 
-
             background: #f4f4f9; 
-
             color: #333; 
-
             font-size: 13px;
-
         }
-
         h2 { margin: 0 0 6px 0; color: #007bff; font-size: 15px; }
-
         .grid-container {
-
             display: grid;
-
             grid-template-columns: 1fr 1fr;
-
             gap: 12px;
-
         }
-
         .card { 
-
             background: #fff; 
-
             padding: 12px; 
-
             border-radius: 6px; 
-
             box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
-
         }
-
         .full-width { grid-column: span 2; }
-
         label { display: block; margin-top: 6px; font-weight: bold; font-size: 11px; }
-
         input[type="text"] { width: 100%; padding: 5px; margin-top: 2px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; font-family: monospace; }
-
         select { width: 100%; padding: 5px; margin-top: 2px; font-size: 12px; }
-
-        button { background: #007bff; color: white; border: none; padding: 6px 10px; font-size: 12px; border-radius: 4px; cursor: pointer; margin-top: 6px; margin-right: 4px; }
-
+        button { background: #007bff; color: white; border: none; padding: 6px 10px; font-size: 12px; border-radius: 4px; cursor: pointer; margin-top: 6px; margin-right: 4px; width: 100%; }
         button:hover { background: #0056b3; }
-
         button:disabled { background: #cccccc; cursor: not-allowed; }
-
         button.success { background: #28a745; }
-
         button.success:hover { background: #218838; }
-
         button.warning { background: #ffc107; color: #333; }
-
         button.warning:hover { background: #e0a800; }
-
         button.danger { background: #dc3545; }
-
         button.danger:hover { background: #c82333; }
-
         pre { 
-
             background: #1e1e1e; 
-
             color: #00ff00; 
-
             padding: 8px; 
-
             border-radius: 4px; 
-
             height: 140px; 
-
             overflow-y: scroll; 
-
             font-family: monospace; 
-
             font-size: 11px; 
-
             margin: 0;
-
         }
-
         p { margin: 2px 0; font-size: 11px; color: #666; }
-
     </style>
-
 </head>
-
 <body>
 
-
-
     <div class="grid-container">
-
         <!-- 左側: スキャナー機能 -->
-
         <div class="card">
-
             <h2>🔍 1. スキャナー（scanner.bin）</h2>
-
             <p>周辺のNintendoデバイスをスキャンし、ペアリング情報を抽出します。</p>
-
             <button id="connectScanBtn">① ポート接続 (スキャナー)</button>
-
             <button id="flashScanBtn" class="success" disabled>② scanner.bin を書込</button>
-
             
-
             <label style="margin-top: 10px;">検出されたNintendoデバイス:</label>
-
             <select id="deviceSelect" size="4" style="height: 75px;">
-
                 <option value="">-- デバイス未検出 (待機中) --</option>
-
             </select>
-
             <div>
-
-                <button id="setAllBtn" class="warning" style="width: 100%; margin-top: 8px;">選択したペア情報を右側に一括転記 ➔</button>
-
+                <button id="setAllBtn" class="warning" style="margin-top: 8px;">選択したペア情報を右側に一括転記 ➔</button>
             </div>
-
         </div>
-
-
 
         <!-- 右側: 送信機書き込み ＆ 設定転送機能 -->
-
         <div class="card">
-
             <h2>🚀 2. 送信機（transmitter_web.bin 書込 ＆ 設定）</h2>
-
-            <p>ファームウェア書込後、再接続してシリアル経由で設定を転送します。</p>
-
+            <p>ファームウェア書込後、自動再接続して設定を転送します。</p>
             
-
-            <div>
-
-                <label for="joycon_mac">Joy-Con MAC (送信元):</label>
-
-                <input type="text" id="joycon_mac" value="AA:BB:CC:DD:EE:FF">
-
-            </div>
-
-            <div>
-
-                <label for="switch_mac">Switch 2 本体 MAC (宛先):</label>
-
-                <input type="text" id="switch_mac" value="11:22:33:44:55:66">
-
-            </div>
-
-            <div>
-
-                <label for="joycon_pid">PID:</label>
-
-                <input type="text" id="joycon_pid" value="0x2066">
-
-            </div>
-
-            
-
             <button id="connectTransBtn" style="margin-top: 6px;">① ポート接続 (送信機)</button>
-
-            <button id="flashTransBtn" class="danger" disabled>② transmitter_web.bin 書込</button>
-
-            <button id="reconnectTransBtn" class="warning" disabled>③ 再接続 (書込後)</button>
-
-            <button id="sendConfigBtn" class="success" disabled>④ 設定送信 ＆ 完了</button>
-
+            <button id="flashTransBtn" class="danger" disabled>② transmitter_web.bin 書込 ＆ 自動再接続</button>
+            
+            <div style="margin-top: 10px; border-top: 1px solid #eee; padding-top: 4px;">
+                <div>
+                    <label for="joycon_mac">Joy-Con MAC (送信元):</label>
+                    <input type="text" id="joycon_mac" value="AA:BB:CC:DD:EE:FF">
+                </div>
+                <div>
+                    <label for="switch_mac">Switch 2 本体 MAC (宛先):</label>
+                    <input type="text" id="switch_mac" value="11:22:33:44:55:66">
+                </div>
+                <div>
+                    <label for="joycon_pid">PID:</label>
+                    <input type="text" id="joycon_pid" value="0x2066">
+                </div>
+            </div>
+            
+            <button id="sendConfigBtn" class="success" disabled>③ 設定送信 ＆ 完了</button>
         </div>
-
-
 
         <!-- 下部: 共通ログ出力 -->
-
         <div class="card full-width">
-
             <h2>📊 シリアルログ出力</h2>
-
             <pre id="console">待機中...</pre>
-
         </div>
-
     </div>
 
-
-
     <!-- esptool-js v0.7.0 の読み込み -->
-
     <script type="module">
-
         import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.7.0/bundle.js";
 
-
-
         const consoleEl = document.getElementById('console');
-
         function log(text) {
-
             consoleEl.textContent += text + "\n";
-
             consoleEl.scrollTop = consoleEl.scrollHeight;
-
         }
-
-
 
         const connectScanBtn = document.getElementById('connectScanBtn');
-
         const flashScanBtn = document.getElementById('flashScanBtn');
-
         const deviceSelect = document.getElementById('deviceSelect');
-
         const setAllBtn = document.getElementById('setAllBtn');
 
-
-
         const connectTransBtn = document.getElementById('connectTransBtn');
-
         const flashTransBtn = document.getElementById('flashTransBtn');
-
-        const reconnectTransBtn = document.getElementById('reconnectTransBtn');
-
         const sendConfigBtn = document.getElementById('sendConfigBtn');
-
         
-
         const joyconInput = document.getElementById('joycon_mac');
-
         const switchInput = document.getElementById('switch_mac');
-
         const pidInput = document.getElementById('joycon_pid');
 
-
-
         let scanPort, scanTransport, scanLoader, scanReader, keepScanning = false;
-
         let transPort, transTransport, transLoader;
-
         let detectedDevices = {};
 
-
-
         // 1. スキャナー側ロジック
-
         connectScanBtn.addEventListener('click', async () => {
-
             try {
-
                 log(">>> [スキャナー] シリアルポートを選択してください...");
-
                 scanPort = await navigator.serial.requestPort();
-
                 scanTransport = new Transport(scanPort);
-
                 
-
                 scanLoader = new ESPLoader({
-
                     transport: scanTransport,
-
                     baudrate: 115200,
-
                     terminal: {
-
                         clean() { consoleEl.textContent = ""; },
-
                         writeLine: (data) => log(data),
-
                         write: (data) => log(data)
-
                     }
-
                 });
-
-
 
                 const chip = await scanLoader.main();
-
                 log(`[スキャナー] ESP32接続成功: ${chip}`);
-
                 connectScanBtn.disabled = true;
-
                 flashScanBtn.disabled = false;
-
             } catch (e) {
-
                 log(`[スキャナー接続エラー] ${e.message}`);
-
             }
-
         });
-
-
 
         flashScanBtn.addEventListener('click', async () => {
-
             try {
-
                 flashScanBtn.disabled = true;
-
                 log(">>> [スキャナー] scanner.bin 書き込み中...");
 
-
-
                 const res = await fetch("scanner.bin");
-
                 if (!res.ok) throw new Error("scanner.bin が見つかりません。");
-
                 
-
                 const arrayBuffer = await res.arrayBuffer();
-
                 await scanLoader.writeFlash({
-
                     fileArray: [{ data: new Uint8Array(arrayBuffer), address: 0x0000 }],
-
                     flashSize: "keep",
-
                     eraseAll: false,
-
                     compress: true
-
                 });
-
                 
-
                 log(">>> [スキャナー] 書き込み完了！スキャンログの受信を開始します...");
-
                 await new Promise(r => setTimeout(r, 1500));
-
                 startScanReading();
-
             } catch (e) {
-
                 log(`[書込エラー] ${e.message}`);
-
                 flashScanBtn.disabled = false;
-
             }
-
         });
-
-
 
         async function startScanReading() {
-
             if (keepScanning) return;
-
             keepScanning = true;
-
             const textDecoder = new TextDecoderStream();
-
             scanPort.readable.pipeTo(textDecoder.writable);
-
             scanReader = textDecoder.readable.getReader();
 
-
-
             let buffer = "";
-
             let curJc = null, curSw = null, curPid = null;
 
-
-
             try {
-
                 while (keepScanning) {
-
                     const { value, done } = await scanReader.read();
-
                     if (done) break;
-
                     if (value) {
-
                         buffer += value;
-
                         let lines = buffer.split("\n");
-
                         buffer = lines.pop();
 
-
-
                         for (let line of lines) {
-
                             line = line.trim();
-
                             log(line);
 
-
-
                             if (line.startsWith("MAC:")) curJc = line.substring(4);
-
                             else if (line.startsWith("SWITCH_MAC:")) curSw = line.substring(11);
-
                             else if (line.startsWith("PID:")) {
-
                                 curPid = line.substring(4);
-
                                 if (curJc && curSw) {
-
                                     addDeviceOption(curJc, curSw, curPid);
-
                                     curJc = curSw = curPid = null;
-
                                 }
-
                             }
-
                         }
-
                     }
-
                 }
-
             } catch (e) {}
-
         }
-
-
 
         function addDeviceOption(jc, sw, pid) {
-
             const key = `${jc}|${sw}|${pid}`;
-
             if (detectedDevices[key]) return;
-
             detectedDevices[key] = { jc, sw, pid };
 
-
-
             if (deviceSelect.options[0].value === "") deviceSelect.innerHTML = "";
-
             const option = document.createElement('option');
-
             option.value = key;
-
             option.textContent = `JC: ${jc} ➔ SW: ${sw} (${pid})`;
-
             deviceSelect.appendChild(option);
-
             log(`🎯 ペア情報検出: JC=${jc} / SW=${sw}`);
-
         }
 
-
-
         setAllBtn.addEventListener('click', () => {
-
             const val = deviceSelect.value;
-
             if (val && detectedDevices[val]) {
-
                 joyconInput.value = detectedDevices[val].jc;
-
                 switchInput.value = detectedDevices[val].sw;
-
                 pidInput.value = detectedDevices[val].pid;
-
                 log(`-> 情報を一括転記しました:\n   JC: ${joyconInput.value}\n   SW: ${switchInput.value}\n   PID: ${pidInput.value}`);
-
             } else {
-
                 log("⚠️ リストからデバイスを選択してください。");
-
             }
-
         });
-
-
 
         // 2. 送信機側ロジック
-
         connectTransBtn.addEventListener('click', async () => {
-
             try {
-
                 log(">>> [送信機] 送信機用のESP32ポートを選択してください...");
-
                 transPort = await navigator.serial.requestPort();
-
                 transTransport = new Transport(transPort);
-
                 
-
                 transLoader = new ESPLoader({
-
                     transport: transTransport,
-
                     baudrate: 115200,
-
                     terminal: {
-
                         clean() {},
-
                         writeLine: (data) => log(data),
-
                         write: (data) => log(data)
-
                     }
-
                 });
-
-
 
                 const chip = await transLoader.main();
-
                 log(`[送信機] ESP32接続成功: ${chip}`);
-
                 connectTransBtn.disabled = true;
-
                 flashTransBtn.disabled = false;
-
             } catch (e) {
-
                 log(`[送信機接続エラー] ${e.message}`);
-
             }
-
         });
 
-
-
+        // 書き込み ＆ 自動再接続処理
         flashTransBtn.addEventListener('click', async () => {
-
             try {
-
                 flashTransBtn.disabled = true;
-
                 log(">>> [送信機] transmitter_web.bin 書き込み中...");
 
-
-
                 const res = await fetch("transmitter_web.bin");
-
                 if (!res.ok) throw new Error("transmitter_web.bin が見つかりません。");
-
                 
-
                 const arrayBuffer = await res.arrayBuffer();
-
                 await transLoader.writeFlash({
-
                     fileArray: [{ data: new Uint8Array(arrayBuffer), address: 0x0000 }],
-
                     flashSize: "keep",
-
                     eraseAll: false,
-
                     compress: true
-
                 });
 
+                log(">>> [送信機] 書き込み完了！ESP32を再起動してポートを自動再接続しています...");
 
+                // ESPLoaderの役目が終わったので、内部のトランスポート/ポートを綺麗にクローズ
+                try {
+                    await transTransport.disconnect();
+                } catch(err) {}
 
-                log(">>> [送信機] 書き込み完了！");
+                // ESP32がリブートするのを少し待ってから、標準のWebSerialとして同じポートを開き直す
+                await new Promise(r => setTimeout(r, 2000));
 
-                log("👉 手順3: 「③ 再接続 (書込後)」を押してポートを再オープンしてください。");
+                if (!transPort.readable) {
+                    await transPort.open({ baudRate: 115200 });
+                }
 
-                
-
-                reconnectTransBtn.disabled = false;
-
-            } catch (e) {
-
-                log(`[送信機書込エラー] ${e.message}`);
-
-                flashTransBtn.disabled = false;
-
-            }
-
-        });
-
-
-
-        // 書き込み後の再接続ステップ
-
-        reconnectTransBtn.addEventListener('click', async () => {
-
-            try {
-
-                log(">>> [送信機] ポートを再接続しています...");
-
-                // 既存ポートが開いている場合は一度閉じる等の処理を挟みつつ新規取得またはトランスポート再初期化
-
-                transPort = await navigator.serial.requestPort();
-
-                transTransport = new Transport(transPort);
-
-                
-
-                // 設定送信用の接続が確立
-
-                reconnectTransBtn.disabled = true;
-
+                log("✅ 自動再接続に成功しました！「③ 設定送信 ＆ 完了」を押してください。");
                 sendConfigBtn.disabled = false;
 
-                log("✅ ポートの再接続に成功しました！「④ 設定送信 ＆ 完了」を押してください。");
-
             } catch (e) {
-
-                log(`[再接続エラー] ${e.message}`);
-
+                log(`[書込・自動再接続エラー] ${e.message}`);
+                flashTransBtn.disabled = false;
             }
-
         });
 
-
-
+        // 設定送信ステップ
         sendConfigBtn.addEventListener('click', async () => {
-
             try {
-
                 log(">>> [送信機] 設定データを転送中...");
+                
+                if (!transPort.writable) {
+                    await transPort.open({ baudRate: 115200 });
+                }
 
                 const writer = transPort.writable.getWriter();
-
                 const configStr = `CFG:${joyconInput.value.trim()},${switchInput.value.trim()},${pidInput.value.trim()}\n`;
-
                 const encoder = new TextEncoder();
-
                 
-
                 log(`-> 送信データ: ${configStr.trim()}`);
-
                 await writer.write(encoder.encode(configStr));
-
                 writer.releaseLock();
 
-
-
                 log("🎉 設定の送信が完了しました！ESP32がリブートし、送信機として動作を開始します。");
-
             } catch (e) {
-
                 log(`[設定送信エラー] ${e.message}`);
-
             }
-
         });
-
     </script>
-
 </body>
-
 </html>
