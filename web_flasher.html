@@ -73,10 +73,10 @@
             </div>
         </div>
 
-        <!-- 右側: 送信機書き込み機能 -->
+        <!-- 右側: 送信機書き込み ＆ 設定転送機能 -->
         <div class="card">
-            <h2>🚀 2. 送信機（transmitter.bin パッチ書込）</h2>
-            <p>抽出されたMACアドレスを焼き込んだ送信機ファームウェアを作成します。</p>
+            <h2>🚀 2. 送信機（transmitter.bin 書込 ＆ 設定）</h2>
+            <p>送信機用ファームウェアを書き込み、シリアル経由で設定を転送します。</p>
             
             <div>
                 <label for="joycon_mac">Joy-Con MAC (送信元):</label>
@@ -86,9 +86,14 @@
                 <label for="switch_mac">Switch 2 本体 MAC (宛先):</label>
                 <input type="text" id="switch_mac" value="11:22:33:44:55:66">
             </div>
+            <div>
+                <label for="joycon_pid">PID:</label>
+                <input type="text" id="joycon_pid" value="0x2066">
+            </div>
             
-            <button id="connectTransBtn" style="margin-top: 10px;">① ポート接続 (送信機)</button>
-            <button id="flashTransBtn" class="danger" disabled>② MAC置換 ＆ transmitter.bin 書込</button>
+            <button id="connectTransBtn" style="margin-top: 6px;">① ポート接続 (送信機)</button>
+            <button id="flashTransBtn" class="danger" disabled>② transmitter.bin 書込</button>
+            <button id="sendConfigBtn" class="success" disabled>③ 設定送信 ＆ 完了</button>
         </div>
 
         <!-- 下部: 共通ログ出力 -->
@@ -115,16 +120,17 @@
 
         const connectTransBtn = document.getElementById('connectTransBtn');
         const flashTransBtn = document.getElementById('flashTransBtn');
+        const sendConfigBtn = document.getElementById('sendConfigBtn');
+        
         const joyconInput = document.getElementById('joycon_mac');
         const switchInput = document.getElementById('switch_mac');
+        const pidInput = document.getElementById('joycon_pid');
 
         let scanPort, scanTransport, scanLoader, scanReader, keepScanning = false;
         let transPort, transTransport, transLoader;
         let detectedDevices = {};
 
-        // ==========================================
-        // 1. スキャナー側ロジック
-        // ==========================================
+        // 1. スキャナー側
         connectScanBtn.addEventListener('click', async () => {
             try {
                 log(">>> [スキャナー] シリアルポートを選択してください...");
@@ -153,10 +159,10 @@
         flashScanBtn.addEventListener('click', async () => {
             try {
                 flashScanBtn.disabled = true;
-                log(">>> [スキャナー] scanner.bin の書き込み開始...");
+                log(">>> [スキャナー] scanner.bin 書き込み中...");
 
                 const res = await fetch("scanner.bin");
-                if (!res.ok) throw new Error("scanner.bin が同じフォルダに見つかりません。");
+                if (!res.ok) throw new Error("scanner.bin が見つかりません。");
                 
                 const arrayBuffer = await res.arrayBuffer();
                 await scanLoader.writeFlash({
@@ -210,9 +216,7 @@
                         }
                     }
                 }
-            } catch (e) {
-                // 終了時エラー無視
-            }
+            } catch (e) {}
         }
 
         function addDeviceOption(jc, sw, pid) {
@@ -223,26 +227,24 @@
             if (deviceSelect.options[0].value === "") deviceSelect.innerHTML = "";
             const option = document.createElement('option');
             option.value = key;
-            option.textContent = `JC: ${jc} ➔ SW: ${sw}`;
+            option.textContent = `JC: ${jc} ➔ SW: ${sw} (${pid})`;
             deviceSelect.appendChild(option);
-            log(`🎯 ペア情報を検出: Joy-Con(${jc}) / Switch 2(${sw})`);
+            log(`🎯 ペア情報検出: JC=${jc} / SW=${sw}`);
         }
 
-        // 一括転記ボタンの処理
         setAllBtn.addEventListener('click', () => {
             const val = deviceSelect.value;
             if (val && detectedDevices[val]) {
                 joyconInput.value = detectedDevices[val].jc;
                 switchInput.value = detectedDevices[val].sw;
-                log(`-> 右側にペア情報を一括転記しました:\n   Joy-Con MAC: ${joyconInput.value}\n   Switch 2 MAC: ${switchInput.value}`);
+                pidInput.value = detectedDevices[val].pid;
+                log(`-> 情報を一括転記しました:\n   JC: ${joyconInput.value}\n   SW: ${switchInput.value}\n   PID: ${pidInput.value}`);
             } else {
                 log("⚠️ リストからデバイスを選択してください。");
             }
         });
 
-        // ==========================================
-        // 2. 送信機側ロジック（バイナリパッチ書込）
-        // ==========================================
+        // 2. 送信機側
         connectTransBtn.addEventListener('click', async () => {
             try {
                 log(">>> [送信機] 送信機用のESP32ポートを選択してください...");
@@ -268,76 +270,43 @@
             }
         });
 
-        function patchBinaryString(uint8Array, targetStr, newStr) {
-            if (targetStr.length !== newStr.length) {
-                throw new Error("置換前後の文字列長が一致しません。");
-            }
-            const encoder = new TextEncoder();
-            const targetBytes = encoder.encode(targetStr);
-            const newBytes = encoder.encode(newStr);
-
-            let matchCount = 0;
-            for (let i = 0; i <= uint8Array.length - targetBytes.length; i++) {
-                let found = true;
-                for (let j = 0; j < targetBytes.length; j++) {
-                    if (uint8Array[i + j] !== targetBytes[j]) {
-                        found = false;
-                        break;
-                    }
-                }
-                if (found) {
-                    for (let j = 0; j < newBytes.length; j++) {
-                        uint8Array[i + j] = newBytes[j];
-                    }
-                    matchCount++;
-                    i += targetBytes.length - 1;
-                }
-            }
-            return matchCount;
-        }
-
         flashTransBtn.addEventListener('click', async () => {
             try {
                 flashTransBtn.disabled = true;
-                log(">>> [送信機] transmitter.bin を読み込み中...");
+                log(">>> [送信機] transmitter.bin 書き込み中...");
 
                 const res = await fetch("transmitter.bin");
-                if (!res.ok) throw new Error("transmitter.bin が同じフォルダに見つかりません。");
+                if (!res.ok) throw new Error("transmitter.bin が見つかりません。");
                 
                 const arrayBuffer = await res.arrayBuffer();
-                let binData = new Uint8Array(arrayBuffer);
-
-                const newJc = joyconInput.value.trim();
-                const newSw = switchInput.value.trim();
-
-                if (newJc.length !== 17 || newSw.length !== 17) {
-                    throw new Error("MACアドレスの形式が正しくありません (例: AA:BB:CC:DD:EE:FF)");
-                }
-
-                log(`>>> バイナリパッチ適用中...`);
-                const jcCount = patchBinaryString(binData, "AA:BB:CC:DD:EE:FF", newJc);
-                const swCount = patchBinaryString(binData, "11:22:33:44:55:66", newSw);
-
-                log(`- Joy-Con MAC 置換: ${jcCount}箇所`);
-                log(`- Switch 2 MAC 置換: ${swCount}箇所`);
-
-                if (jcCount === 0 || swCount === 0) {
-                    log("⚠️ 警告: transmitter.bin 内のプレースホルダーが見つかりませんでした。");
-                }
-
-                log(">>> [送信機] カスタムバイナリの書き込み開始...");
                 await transLoader.writeFlash({
-                    fileArray: [{ data: binData, address: 0x0000 }],
+                    fileArray: [{ data: new Uint8Array(arrayBuffer), address: 0x0000 }],
                     flashSize: "keep",
                     eraseAll: false,
                     compress: true
                 });
 
-                log("🎉 [送信機] カスタム送信機の書き込みが正常に完了しました！");
-                flashTransBtn.disabled = false;
+                log(">>> [送信機] 書き込み完了！続いて「③ 設定送信 ＆ 完了」を押してください。");
+                sendConfigBtn.disabled = false;
             } catch (e) {
                 log(`[送信機書込エラー] ${e.message}`);
                 flashTransBtn.disabled = false;
+            }
+        });
+
+        sendConfigBtn.addEventListener('click', async () => {
+            try {
+                log(">>> [送信機] 設定データを転送中...");
+                const writer = transPort.writable.getWriter();
+                const configStr = `CFG:${joyconInput.value},${switchInput.value},${pidInput.value}\n`;
+                const encoder = new TextEncoder();
+                await writer.write(encoder.encode(configStr));
+                writer.releaseLock();
+
+                log(`>>> 送信完了: ${configStr.trim()}`);
+                log("🎉 送信機の設定が保存され、リブートしました。これですべて完了です！");
+            } catch (e) {
+                log(`[設定送信エラー] ${e.message}`);
             }
         });
     </script>
