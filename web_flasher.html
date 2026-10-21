@@ -75,7 +75,7 @@
 
         <!-- 右側: 送信機書き込み ＆ 設定転送機能 -->
         <div class="card">
-            <h2>🚀 2. 送信機（transmitter.bin 書込 ＆ 設定）</h2>
+            <h2>🚀 2. 送信機（transmitter_web.bin 書込 ＆ 設定）</h2>
             <p>送信機用ファームウェアを書き込み、シリアル経由で設定を転送します。</p>
             
             <div>
@@ -92,7 +92,7 @@
             </div>
             
             <button id="connectTransBtn" style="margin-top: 6px;">① ポート接続 (送信機)</button>
-            <button id="flashTransBtn" class="danger" disabled>② transmitter.bin 書込</button>
+            <button id="flashTransBtn" class="danger" disabled>② transmitter_web.bin 書込</button>
             <button id="sendConfigBtn" class="success" disabled>③ 設定送信 ＆ 完了</button>
         </div>
 
@@ -273,10 +273,10 @@
         flashTransBtn.addEventListener('click', async () => {
             try {
                 flashTransBtn.disabled = true;
-                log(">>> [送信機] transmitter.bin 書き込み中...");
+                log(">>> [送信機] transmitter_web.bin 書き込み中...");
 
-                const res = await fetch("transmitter.bin");
-                if (!res.ok) throw new Error("transmitter.bin が見つかりません。");
+                const res = await fetch("transmitter_web.bin");
+                if (!res.ok) throw new Error("transmitter_web.bin が見つかりません。");
                 
                 const arrayBuffer = await res.arrayBuffer();
                 await transLoader.writeFlash({
