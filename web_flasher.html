@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Switch 2 Wakeup - Web Flasher & Configurator</title>
+    <title>Switch 2 Wakeup - Flasher & Configurator</title>
     <style>
         * { box-sizing: border-box; }
         body { 
             font-family: sans-serif; 
-            max-width: 1100px; 
+            max-width: 1200px; 
             margin: 10px auto; 
             padding: 10px; 
             background: #f4f4f9; 
@@ -19,15 +19,16 @@
         .grid-container {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            gap: 12px;
         }
         .card { 
             background: #fff; 
-            padding: 10px; 
+            padding: 12px; 
             border-radius: 6px; 
             box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
         }
-        label { display: block; margin-top: 4px; font-weight: bold; font-size: 11px; }
+        .full-width { grid-column: span 2; }
+        label { display: block; margin-top: 6px; font-weight: bold; font-size: 11px; }
         input[type="text"] { width: 100%; padding: 5px; margin-top: 2px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; font-family: monospace; }
         select { width: 100%; padding: 5px; margin-top: 2px; font-size: 12px; }
         button { background: #007bff; color: white; border: none; padding: 6px 10px; font-size: 12px; border-radius: 4px; cursor: pointer; margin-top: 6px; margin-right: 4px; }
@@ -37,12 +38,14 @@
         button.success:hover { background: #218838; }
         button.warning { background: #ffc107; color: #333; }
         button.warning:hover { background: #e0a800; }
+        button.danger { background: #dc3545; }
+        button.danger:hover { background: #c82333; }
         pre { 
             background: #1e1e1e; 
             color: #00ff00; 
             padding: 8px; 
             border-radius: 4px; 
-            height: 110px; 
+            height: 120px; 
             overflow-y: scroll; 
             font-family: monospace; 
             font-size: 11px; 
@@ -54,100 +57,140 @@
 <body>
 
     <div class="grid-container">
-        <!-- 左上: 接続 ＆ ファームウェア書込 -->
+        <!-- 左側: スキャナー機能 -->
         <div class="card">
-            <h2>🚀 1. 接続 ＆ ファームウェア書込</h2>
-            <p>ポート接続後、firmware.bin を書き込みます（書き込み後、自動でスキャンモードへ）。</p>
-            <button id="connectBtn">1. シリアルポート接続</button>
-            <button id="flashBtn" class="success" disabled>2. firmware.bin を書き込む</button>
-        </div>
-
-        <!-- 右上: スキャン結果の選択・転記 -->
-        <div class="card">
-            <h2>🔍 2. スキャン結果の選択・転記</h2>
-            <p>スキャンモード起動中のESP32から検出されたデバイスです。</p>
-            <select id="deviceSelect" size="3" style="height: 50px;">
+            <h2>🔍 1. スキャナー（scanner.bin）</h2>
+            <p>周辺のNintendoデバイスをスキャンし、MACアドレスを抽出します。</p>
+            <button id="connectScanBtn">① ポート接続 (スキャナー)</button>
+            <button id="flashScanBtn" class="success" disabled>② scanner.bin を書込</button>
+            
+            <label style="margin-top: 10px;">検出されたデバイス一覧:</label>
+            <select id="deviceSelect" size="4" style="height: 70px;">
                 <option value="">-- デバイス未検出 (待機中) --</option>
             </select>
             <div>
-                <button id="setJoyconBtn" class="warning">Joy-Conに反映</button>
-                <button id="setSwitchBtn" class="warning">Switch 2に反映</button>
+                <button id="setJoyconBtn" class="warning">Joy-Conに転記 ➔</button>
+                <button id="setSwitchBtn" class="warning">Switch 2に転記 ➔</button>
             </div>
         </div>
 
-        <!-- 左下: パラメータ設定 ＆ 転送 -->
+        <!-- 右側: 送信機書き込み機能 -->
         <div class="card">
-            <h2>⚙️ 3. 設定値の確認 ＆ 転送</h2>
+            <h2>🚀 2. 送信機（transmitter.bin パッチ書込）</h2>
+            <p>MACアドレスを書き換えたうえで送信機ファームウェアを焼き込みます。</p>
+            
             <div>
                 <label for="joycon_mac">Joy-Con MAC (正順):</label>
                 <input type="text" id="joycon_mac" value="AA:BB:CC:DD:EE:FF">
             </div>
             <div>
                 <label for="switch_mac">Switch 2 本体 MAC (正順):</label>
-                <input type="text" id="switch_mac" value="AA:BB:CC:DD:EE:FF">
+                <input type="text" id="switch_mac" value="11:22:33:44:55:66">
             </div>
-            <div>
-                <label for="joycon_pid">Joy-Con PID:</label>
-                <input type="text" id="joycon_pid" value="0x2066">
-            </div>
-            <button id="sendConfigBtn" class="success" disabled>3. 設定送信 ＆ リブート</button>
+            
+            <button id="connectTransBtn" style="margin-top: 10px;">① ポート接続 (送信機)</button>
+            <button id="flashTransBtn" class="danger" disabled>② MAC置換 ＆ transmitter.bin 書込</button>
         </div>
 
-        <!-- 右下: ログ出力 -->
-        <div class="card">
-            <h2>📊 リアルタイムログ</h2>
+        <!-- 下部: 共通ログ出力 -->
+        <div class="card full-width">
+            <h2>📊 シリアルログ出力</h2>
             <pre id="console">待機中...</pre>
         </div>
     </div>
 
-    <!-- esptool-js 最新安定版 (v0.7.0) の読み込み -->
+    <!-- esptool-js v0.7.0 の読み込み -->
     <script type="module">
         import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.7.0/bundle.js";
 
-        const connectBtn = document.getElementById('connectBtn');
-        const flashBtn = document.getElementById('flashBtn');
-        const sendConfigBtn = document.getElementById('sendConfigBtn');
-        const deviceSelect = document.getElementById('deviceSelect');
-        const setJoyconBtn = document.getElementById('setJoyconBtn');
-        const setSwitchBtn = document.getElementById('setSwitchBtn');
-        
-        const joyconInput = document.getElementById('joycon_mac');
-        const switchInput = document.getElementById('switch_mac');
-        const pidInput = document.getElementById('joycon_pid');
         const consoleEl = document.getElementById('console');
-
-        let port, transport, espLoader;
-        let detectedDevices = {};
-        let reader, keepReading = false;
-
         function log(text) {
             consoleEl.textContent += text + "\n";
             consoleEl.scrollTop = consoleEl.scrollHeight;
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
-            if (!navigator.serial) {
-                log("⚠️ 警告: Web Serial非対応ブラウザです。Chrome/Edgeをご利用ください。");
-                connectBtn.disabled = true;
-            } else {
-                log(">>> 準備完了。「1. シリアルポート接続」から始めてください。");
+        // DOM要素
+        const connectScanBtn = document.getElementById('connectScanBtn');
+        const flashScanBtn = document.getElementById('flashScanBtn');
+        const deviceSelect = document.getElementById('deviceSelect');
+        const setJoyconBtn = document.getElementById('setJoyconBtn');
+        const setSwitchBtn = document.getElementById('setSwitchBtn');
+
+        const connectTransBtn = document.getElementById('connectTransBtn');
+        const flashTransBtn = document.getElementById('flashTransBtn');
+        const joyconInput = document.getElementById('joycon_mac');
+        const switchInput = document.getElementById('switch_mac');
+
+        let scanPort, scanTransport, scanLoader, scanReader, keepScanning = false;
+        let transPort, transTransport, transLoader;
+        let detectedDevices = {};
+
+        // ==========================================
+        // 1. スキャナー側ロジック
+        // ==========================================
+        connectScanBtn.addEventListener('click', async () => {
+            try {
+                log(">>> [スキャナー] シリアルポートを選択してください...");
+                scanPort = await navigator.serial.requestPort();
+                scanTransport = new Transport(scanPort);
+                
+                scanLoader = new ESPLoader({
+                    transport: scanTransport,
+                    baudrate: 921600,
+                    terminal: {
+                        clean() { consoleEl.textContent = ""; },
+                        writeLine: (data) => log(data),
+                        write: (data) => log(data)
+                    }
+                });
+
+                const chip = await scanLoader.main();
+                log(`[スキャナー] ESP32接続成功: ${chip}`);
+                connectScanBtn.disabled = true;
+                flashScanBtn.disabled = false;
+            } catch (e) {
+                log(`[スキャナー接続エラー] ${e.message}`);
             }
         });
 
-        // シリアル監視ループ（スキャン結果やESPからの出力をリアルタイム取得）
-        async function startReading() {
-            if (keepReading) return;
-            keepReading = true;
+        flashScanBtn.addEventListener('click', async () => {
+            try {
+                flashScanBtn.disabled = true;
+                log(">>> [スキャナー] scanner.bin の書き込み開始...");
+
+                const res = await fetch("scanner.bin");
+                if (!res.ok) throw new Error("scanner.bin が同じフォルダに見つかりません。");
+                
+                const arrayBuffer = await res.arrayBuffer();
+                await scanLoader.writeFlash({
+                    fileArray: [{ data: new Uint8Array(arrayBuffer), address: 0x0000 }],
+                    flashSize: "keep",
+                    eraseAll: false,
+                    compress: true
+                });
+                
+                log(">>> [スキャナー] 書き込み完了！スキャンログの受信を開始します...");
+                await new Promise(r => setTimeout(r, 1500));
+                startScanReading();
+            } catch (e) {
+                log(`[書込エラー] ${e.message}`);
+                flashScanBtn.disabled = false;
+            }
+        });
+
+        async function startScanReading() {
+            if (keepScanning) return;
+            keepScanning = true;
             const textDecoder = new TextDecoderStream();
-            port.readable.pipeTo(textDecoder.writable);
-            reader = textDecoder.readable.getReader();
+            scanPort.readable.pipeTo(textDecoder.writable);
+            scanReader = textDecoder.readable.getReader();
 
             let buffer = "";
             let curJc = null, curSw = null, curPid = null;
 
             try {
-                while (keepReading) {
-                    const { value, done } = await reader.read();
+                while (keepScanning) {
+                    const { value, done } = await scanReader.read();
                     if (done) break;
                     if (value) {
                         buffer += value;
@@ -158,11 +201,9 @@
                             line = line.trim();
                             log(line);
 
-                            if (line.startsWith("MAC:")) {
-                                curJc = line.substring(4);
-                            } else if (line.startsWith("SWITCH_MAC:")) {
-                                curSw = line.substring(11);
-                            } else if (line.startsWith("PID:")) {
+                            if (line.startsWith("MAC:")) curJc = line.substring(4);
+                            else if (line.startsWith("SWITCH_MAC:")) curSw = line.substring(11);
+                            else if (line.startsWith("PID:")) {
                                 curPid = line.substring(4);
                                 if (curJc && curSw) {
                                     addDeviceOption(curJc, curSw, curPid);
@@ -174,8 +215,6 @@
                 }
             } catch (e) {
                 // 終了時のエラー無視
-            } finally {
-                reader.releaseLock();
             }
         }
 
@@ -184,10 +223,7 @@
             if (detectedDevices[key]) return;
             detectedDevices[key] = { jc, sw, pid };
 
-            if (deviceSelect.options[0].value === "") {
-                deviceSelect.innerHTML = "";
-            }
-
+            if (deviceSelect.options[0].value === "") deviceSelect.innerHTML = "";
             const option = document.createElement('option');
             option.value = key;
             option.textContent = `JC: ${jc} / SW: ${sw} (${pid})`;
@@ -199,8 +235,7 @@
             const val = deviceSelect.value;
             if (val && detectedDevices[val]) {
                 joyconInput.value = detectedDevices[val].jc;
-                pidInput.value = detectedDevices[val].pid;
-                log(`-> Joy-Con MAC/PID を転記しました: ${joyconInput.value}`);
+                log(`-> 右側に Joy-Con MAC を転記: ${joyconInput.value}`);
             }
         });
 
@@ -208,93 +243,111 @@
             const val = deviceSelect.value;
             if (val && detectedDevices[val]) {
                 switchInput.value = detectedDevices[val].sw;
-                log(`-> Switch 2 MAC を転記しました: ${switchInput.value}`);
+                log(`-> 右側に Switch 2 MAC を転記: ${switchInput.value}`);
             }
         });
 
-        // 1. シリアルポート接続
-        connectBtn.addEventListener('click', async () => {
+        // ==========================================
+        // 2. 送信機側ロジック（バイナリパッチ書込）
+        // ==========================================
+        connectTransBtn.addEventListener('click', async () => {
             try {
-                log(">>> シリアルポート選択画面を開きます...");
-                port = await navigator.serial.requestPort();
-                transport = new Transport(port);
+                log(">>> [送信機] 送信機用のESP32ポートを選択してください...");
+                transPort = await navigator.serial.requestPort();
+                transTransport = new Transport(transPort);
                 
-                espLoader = new ESPLoader({
-                    transport: transport,
+                transLoader = new ESPLoader({
+                    transport: transTransport,
                     baudrate: 921600,
                     terminal: {
-                        clean() { consoleEl.textContent = ""; },
+                        clean() {},
                         writeLine: (data) => log(data),
                         write: (data) => log(data)
                     }
                 });
 
-                const chip = await espLoader.main();
-                log(`ESP32接続成功: 検出チップ = ${chip}`);
-                
-                connectBtn.disabled = true;
-                flashBtn.disabled = false;
-                sendConfigBtn.disabled = false;
+                const chip = await transLoader.main();
+                log(`[送信機] ESP32接続成功: ${chip}`);
+                connectTransBtn.disabled = true;
+                flashTransBtn.disabled = false;
             } catch (e) {
-                log(`接続エラー: ${e.message}`);
+                log(`[送信機接続エラー] ${e.message}`);
             }
         });
 
-        // 2. ファームウェア書込
-        flashBtn.addEventListener('click', async () => {
-            try {
-                flashBtn.disabled = true;
-                log(">>> firmware.bin の書き込み開始...");
+        // バイナリ内の文字列を置換するヘルパー関数
+        function patchBinaryString(uint8Array, targetStr, newStr) {
+            if (targetStr.length !== newStr.length) {
+                throw new Error("置換前後の文字列長が一致しません。");
+            }
+            const encoder = new TextEncoder();
+            const targetBytes = encoder.encode(targetStr);
+            const newBytes = encoder.encode(newStr);
 
-                const response = await fetch("firmware.bin");
-                if (!response.ok) throw new Error("firmware.bin が同じフォルダに見つかりません。");
+            let matchCount = 0;
+            for (let i = 0; i <= uint8Array.length - targetBytes.length; i++) {
+                let found = true;
+                for (let j = 0; j < targetBytes.length; j++) {
+                    if (uint8Array[i + j] !== targetBytes[j]) {
+                        found = false;
+                        break;
+                    }
+                }
+                if (found) {
+                    for (let j = 0; j < newBytes.length; j++) {
+                        uint8Array[i + j] = newBytes[j];
+                    }
+                    matchCount++;
+                    i += targetBytes.length - 1;
+                }
+            }
+            return matchCount;
+        }
+
+        flashTransBtn.addEventListener('click', async () => {
+            try {
+                flashTransBtn.disabled = true;
+                log(">>> [送信機] transmitter.bin を読み込み中...");
+
+                const res = await fetch("transmitter.bin");
+                if (!res.ok) throw new Error("transmitter.bin が同じフォルダに見つかりません。");
                 
-                const blob = await response.blob();
-                const arrayBuffer = await blob.arrayBuffer();
-                
-                const fileArray = [{ data: new Uint8Array(arrayBuffer), address: 0x0000 }];
-                
-                await espLoader.writeFlash({
-                    fileArray: fileArray,
+                const arrayBuffer = await res.arrayBuffer();
+                let binData = new Uint8Array(arrayBuffer);
+
+                // 入力されたMACアドレスの検証 (17文字)
+                const newJc = joyconInput.value.trim();
+                const newSw = switchInput.value.trim();
+
+                if (newJc.length !== 17 || newSw.length !== 17) {
+                    throw new Error("MACアドレスの形式が正しくありません (例: AA:BB:CC:DD:EE:FF)");
+                }
+
+                log(`>>> バイナリパッチ適用中...`);
+                // プレースホルダー文字列 "AA:BB:CC:DD:EE:FF" と "11:22:33:44:55:66" を置換
+                const jcCount = patchBinaryString(binData, "AA:BB:CC:DD:EE:FF", newJc);
+                const swCount = patchBinaryString(binData, "11:22:33:44:55:66", newSw);
+
+                log(`- Joy-Con MAC 置換箇所: ${jcCount}箇所`);
+                log(`- Switch 2 MAC 置換箇所: ${swCount}箇所`);
+
+                if (jcCount === 0 || swCount === 0) {
+                    log("⚠️ 警告: transmitter.bin 内のプレースホルダーが見つかりませんでした。ソースコード内で初期値が一致しているか確認してください。");
+                }
+
+                log(">>> [送信機] カスタムバイナリの書き込み開始...");
+                await transLoader.writeFlash({
+                    fileArray: [{ data: binData, address: 0x0000 }],
                     flashSize: "keep",
                     eraseAll: false,
                     compress: true
                 });
-                
-                log(">>> 書き込み完了！ESP32を再起動してスキャンモードを起動します...");
-                
-                // 書き込み完了後、ポートをリセットして再接続状態にし、スキャンログの受信を開始
-                await new Promise(r => setTimeout(r, 2000));
-                log(">>> スキャン結果の受信を待機中...");
-                
-                // リーダーを起動してESPからのスキャン結果をキャッチする
-                startReading();
 
+                log("🎉 [送信機] カスタム送信機の書き込みが正常に完了しました！再起動して動作します。");
+                flashTransBtn.disabled = false;
             } catch (e) {
-                log(`エラー: ${e.message}`);
-                flashBtn.disabled = false;
-            }
-        });
-
-        // 3. 設定送信 ＆ リブート
-        sendConfigBtn.addEventListener('click', async () => {
-            try {
-                // 読み取りリーダーループが動いている場合は一時停止してライターを取得
-                if (reader) {
-                    keepReading = false;
-                    await reader.cancel();
-                }
-
-                log(">>> 設定データをESP32に転送中...");
-                const writer = port.writable.getWriter();
-                const configStr = `CFG:${joyconInput.value},${switchInput.value},${pidInput.value}\n`;
-                const encoder = new TextEncoder();
-                await writer.write(encoder.encode(configStr));
-                writer.releaseLock();
-
-                log(">>> 送信完了！ESP32がリブートし、次回から送信機モードに移行します。");
-            } catch (e) {
-                log(`設定送信エラー: ${e.message}`);
+                log(`[送信機書込エラー] ${e.message}`);
+                flashTransBtn.disabled = false;
             }
         });
     </script>
