@@ -141,7 +141,7 @@
                 
                 scanLoader = new ESPLoader({
                     transport: scanTransport,
-                    baudrate: 921600,
+                    baudrate: 115200,
                     terminal: {
                         clean() { consoleEl.textContent = ""; },
                         writeLine: (data) => log(data),
@@ -255,7 +255,7 @@
                 
                 transLoader = new ESPLoader({
                     transport: transTransport,
-                    baudrate: 921600,
+                    baudrate: 115200,
                     terminal: {
                         clean() {},
                         writeLine: (data) => log(data),
