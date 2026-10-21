@@ -59,10 +59,10 @@
     <div class="grid-container">
         <!-- 左側: スキャナー機能 -->
         <div class="card">
-            <h2>🔍 1. スキャナー（scanner.bin）</h2>
+            <h2>🔍 1. スキャナー（BLE_Scanner.bin）</h2>
             <p>周辺のNintendoデバイスをスキャンし、ペアリング情報を抽出します。</p>
             <button id="connectScanBtn">① ポート接続 (スキャナー)</button>
-            <button id="flashScanBtn" class="success" disabled>② scanner.bin を書込</button>
+            <button id="flashScanBtn" class="success" disabled>② BLE_Scanner.bin を書込</button>
             
             <label style="margin-top: 10px;">検出されたNintendoデバイス:</label>
             <select id="deviceSelect" size="4" style="height: 75px;">
@@ -159,10 +159,10 @@
         flashScanBtn.addEventListener('click', async () => {
             try {
                 flashScanBtn.disabled = true;
-                log(">>> [スキャナー] scanner.bin 書き込み中...");
+                log(">>> [スキャナー] BLE_Scanner.bin 書き込み中...");
 
-                const res = await fetch("scanner.bin");
-                if (!res.ok) throw new Error("scanner.bin が見つかりません。");
+                const res = await fetch("BLE_Scanner.bin");
+                if (!res.ok) throw new Error("BLE_Scanner.bin が見つかりません。");
                 
                 const arrayBuffer = await res.arrayBuffer();
                 await scanLoader.writeFlash({
