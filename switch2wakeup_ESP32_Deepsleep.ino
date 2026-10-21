@@ -15,7 +15,7 @@
 static const char* SOURCE_JOYCON_MAC = "AA:BB:CC:DD:EE:FF";
 
 // 2. スキャンで取得したSwitch 2本体のBluetooth MACアドレス（正順）
-static const char* TARGET_SWITCH_MAC = "AA:BB:CC:DD:EE:FF";
+static const char* TARGET_SWITCH_MAC = "11:22:33:44:55:66";
 
 // 3. 実際に取得したJoy-ConのPID（通常は 0x2066 または 0x2067 など）
 static const uint16_t SOURCE_JOYCON_PID = 0x2066;
