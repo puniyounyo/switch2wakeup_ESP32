@@ -387,21 +387,83 @@
             }
         });
 
+        // ===== スキャナーのログ解析（行頭一致に頼らず、順序も問わない）=====
+        const MAC_RE = /([0-9A-Fa-f]{2}[:\-]){5}[0-9A-Fa-f]{2}/;
+        const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]/g;
+        let scanRec = { jc: null, sw: null, pid: null };
+        let scanFlushTimer = null;
+
+        function normMac(s) { return s.replace(/-/g, ":").toUpperCase(); }
+        function normPid(s) {
+            s = s.trim();
+            if (/^0x/i.test(s)) return "0x" + s.slice(2).toUpperCase();
+            return "0x" + s.toUpperCase(); // 4桁の16進
+        }
+        function resetScanRec() {
+            scanRec = { jc: null, sw: null, pid: null };
+            if (scanFlushTimer) { clearTimeout(scanFlushTimer); scanFlushTimer = null; }
+        }
+
+        function emitScanRec() {
+            if (!scanRec.jc || !scanRec.sw) return;
+            addDeviceOption(scanRec.jc, scanRec.sw, scanRec.pid || "");
+            resetScanRec();
+        }
+
+        function processScanLine(raw) {
+            const line = raw.replace(ANSI_RE, "").trim();
+            if (!line) return;
+
+            const mac = line.match(MAC_RE);
+            const pid = line.match(/PID\s*[:=]?\s*(0x[0-9a-fA-F]{1,4}|[0-9a-fA-F]{4})\b/i);
+            let changed = false;
+
+            if (pid) { scanRec.pid = normPid(pid[1]); changed = true; }
+
+            if (mac) {
+                const m = normMac(mac[0]);
+                const isSw = /switch|sw[_\s-]?mac|console|host|dest|target|peer|本体|宛先/i.test(line);
+                const isJc = /joy|jc|controller|source|src|送信元/i.test(line);
+                if (isSw) {
+                    scanRec.sw = m;
+                } else {
+                    // Joy-Con側のMAC（キーワード無しの "MAC:" もここ）
+                    if (!isJc && scanRec.jc && scanRec.jc !== m) {
+                        // 2つ目のキーワード無しMAC → Switch側とみなす
+                        if (!scanRec.sw) scanRec.sw = m;
+                    } else {
+                        // 別のJoy-Conのブロックが始まったら、前の途中データは捨てる
+                        if (scanRec.jc && scanRec.jc !== m) resetScanRec();
+                        scanRec.jc = m;
+                    }
+                }
+                changed = true;
+            } else if (/mac/i.test(line) && !pid) {
+                log(`⚠️ MACらしき行ですが形式を解釈できません: ${line}`);
+            }
+
+            if (!changed) return;
+            log(`🔎 解析: JC=${scanRec.jc || "-"} / SW=${scanRec.sw || "-"} / PID=${scanRec.pid || "-"}`);
+
+            if (scanRec.jc && scanRec.sw && scanRec.pid) {
+                emitScanRec();
+            } else if (scanRec.jc && scanRec.sw) {
+                // PID行が来ない/遅い場合に備え、少し待ってから登録
+                if (scanFlushTimer) clearTimeout(scanFlushTimer);
+                scanFlushTimer = setTimeout(() => {
+                    scanFlushTimer = null;
+                    emitScanRec();
+                }, 1500);
+            }
+        }
+
         function startScanReading() {
-            let curJc = null, curSw = null, curPid = null;
+            resetScanRec();
             scanReaderCtl = startReader(scanPort, {
                 onChunk: (text) => { scanRx += text.length; },
                 onLine: (line) => {
                     log(line);
-                    if (line.startsWith("MAC:")) curJc = line.substring(4);
-                    else if (line.startsWith("SWITCH_MAC:")) curSw = line.substring(11);
-                    else if (line.startsWith("PID:")) {
-                        curPid = line.substring(4);
-                        if (curJc && curSw) {
-                            addDeviceOption(curJc, curSw, curPid);
-                            curJc = curSw = curPid = null;
-                        }
-                    }
+                    processScanLine(line);
                 }
             });
         }
@@ -436,9 +498,10 @@
             if (deviceSelect.options[0].value === "") deviceSelect.innerHTML = "";
             const option = document.createElement('option');
             option.value = key;
-            option.textContent = `JC: ${jc} ➔ SW: ${sw} (${pid})`;
+            option.textContent = `JC: ${jc} ➔ SW: ${sw} (${pid || "PID不明"})`;
             deviceSelect.appendChild(option);
-            log(`🎯 ペア情報検出: JC=${jc} / SW=${sw}`);
+            if (deviceSelect.selectedIndex < 0) deviceSelect.selectedIndex = 0; // 先頭を自動選択
+            log(`🎯 ペア情報検出: JC=${jc} / SW=${sw} / PID=${pid || "不明"}`);
         }
 
         setAllBtn.addEventListener('click', () => {
@@ -446,7 +509,7 @@
             if (val && detectedDevices[val]) {
                 joyconInput.value = detectedDevices[val].jc;
                 switchInput.value = detectedDevices[val].sw;
-                pidInput.value = detectedDevices[val].pid;
+                if (detectedDevices[val].pid) pidInput.value = detectedDevices[val].pid;
                 log(`-> 情報を一括転記しました:\n   JC: ${joyconInput.value}\n   SW: ${switchInput.value}\n   PID: ${pidInput.value}`);
             } else {
                 log("⚠️ リストからデバイスを選択してください。");
