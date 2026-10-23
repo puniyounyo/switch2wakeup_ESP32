@@ -1,4 +1,4 @@
-https://puniyounyo.github.io/switch2wakeup_ESP32/web_flasher.html
+
 
 https://puniyounyo.github.io/switch2wakeup_ESP32/web-flasher/index.html
 
