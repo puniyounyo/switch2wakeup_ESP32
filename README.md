@@ -68,8 +68,6 @@ Switch 2 の Wake Beacon を送信する本体プログラムです。
 
 ### 推奨
 
-- LED × 1
-- 220Ω抵抗 × 1
 - ケース
 
 ---
@@ -130,7 +128,7 @@ NimBLE-Arduino
 
 # Step 1 : Switch2情報取得
 
-まず BLE_Scanner.ino.txt をESP32へ書き込みます。 【2-294418】
+まず BLE_Scanner.ino をESP32へ書き込みます。
 
 シリアルモニタを
 
@@ -155,7 +153,6 @@ PID :
 0x2066
 ```
 
-【2-294418】
 
 ---
 
@@ -173,7 +170,7 @@ PID
 
 # Step 2 : 起動プログラム設定
 
-switch2wakeup_ESP32_Deepsleep.ino.txt を開きます。 【1-24e8fa】
+switch2wakeup_ESP32_Deepsleep.ino を開きます。
 
 以下3ヶ所を書き換えます。
 
@@ -234,7 +231,7 @@ static const uint16_t SOURCE_JOYCON_PID =
 BUTTON_PIN = GPIO4
 ```
 
-【1-24e8fa】
+
 
 配線
 
@@ -242,37 +239,14 @@ BUTTON_PIN = GPIO4
 GPIO4 ── ボタン ── GND
 ```
 
-内部プルアップ利用のため外部抵抗不要です。 【1-24e8fa】
+内部プルアップ利用のため外部抵抗不要です。 
 
 ---
 
-## LED（任意）
-
-デフォルト
-
-```cpp
-LED_PIN = GPIO8
-```
-
-【1-24e8fa】
-
-配線
-
-```text
-GPIO8
- ↓
-220Ω
- ↓
-LED
- ↓
-GND
-```
-
----
 
 # Step 4 : 書き込み
 
-switch2wakeup_ESP32_Deepsleep.ino.txt をESP32-C3へ書き込みます。 【1-24e8fa】
+switch2wakeup_ESP32_Deepsleep.ino をESP32-C3へ書き込みます。
 
 ---
 
@@ -285,7 +259,7 @@ USB接続後リセットすると
 Entering DEEP SLEEP immediately.
 ```
 
-と表示されます。 【1-24e8fa】
+と表示されます。
 
 これは正常動作です。
 
@@ -309,7 +283,7 @@ Switch2起動
 Deep Sleepへ復帰
 ```
 
-します。 【1-24e8fa】
+します。
 
 ---
 
@@ -325,50 +299,12 @@ Deep Sleep
 数μAレベル
 ```
 
-ボタン押下時のみ送信処理を行います。 【1-24e8fa】
+ボタン押下時のみ送信処理を行います。
 
 ---
 
-# ボタン電池運用
 
-推奨電池
 
-```text
-CR2450
-CR2477
-```
-
-安定動作のため
-
-```text
-470μF〜1000μF
-```
-
-程度の電解コンデンサ追加を推奨します。
-
----
-
-# 複数台対応
-
-Switch2を複数台所有している場合は、
-
-- Joy-Con MAC
-- Switch MAC
-- PID
-
-を台数分保持することで拡張可能です。
-
-例
-
-```text
-ボタン1 → Switch2-A
-
-ボタン2 → Switch2-B
-
-ボタン3 → Switch2-C
-```
-
----
 
 # トラブルシューティング
 
@@ -393,21 +329,6 @@ Switch2を複数台所有している場合は、
 
 ---
 
-## 電池運用で不安定
-
-原因
-
-```text
-起動時の電流不足
-```
-
-対策
-
-```text
-大容量コンデンサ追加
-```
-
----
 
 # 謝辞
 
