@@ -13,6 +13,7 @@ ESP32-C3 から BLE の起動信号を送り、スリープ中の Nintendo Switc
 ブラウザからファームウェアを書き込むページはこちらです。
 
 **[→ index.html を開く](index.html)**
+https://puniyounyo.github.io/switch2wakeup_ESP32/standalone/index.html
 
 - PC の **Chrome または Edge** で開いてください(Web Serial 対応ブラウザが必要です)。
 - `file://` で直接開くと動きません。`http://localhost` で配信するか、GitHub Pages などの https で開いてください。
