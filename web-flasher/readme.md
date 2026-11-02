@@ -24,7 +24,9 @@ ESP32-C3 を使って、プロコン（Nintendo Switch Pro Controller）から N
 
 ## 起動のしかた
 
-`index.html` を直接ダブルクリックして開くと、`.bin` を読み込めません。**ローカルサーバー経由**で開いてください。
+https://puniyounyo.github.io/switch2wakeup_ESP32/web-flasher/index.html
+
+もしくは　`index.html` を直接ダブルクリックして開くと、`.bin` を読み込めません。**ローカルサーバー経由**で開いてください。
 
 ```bash
 # 3つのファイルを置いたフォルダで実行
