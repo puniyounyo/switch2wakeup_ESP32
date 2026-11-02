@@ -45,6 +45,14 @@ static const char* DEFAULT_PID     = "0x2066";
 
 Preferences preferences;
 
+// ※ Arduino IDEは関数プロトタイプを自動で先頭に挿入するため、
+//   関数の引数・戻り値で使う型はここ(関数より前)で定義しておく
+struct Config {
+    String jc;
+    String sw;
+    String pid;
+};
+
 // ---------------------------- 共通ヘルパー ---------------------------------
 static void led(bool on) {
     digitalWrite(PIN_LED, (on != LED_ACTIVE_LOW) ? HIGH : LOW);
@@ -73,12 +81,6 @@ static void macMinus2(uint8_t* mac) {
         else        { mac[i] = (uint8_t)(v + 256); borrow = 1; }
     }
 }
-
-struct Config {
-    String jc;
-    String sw;
-    String pid;
-};
 
 static Config loadConfig() {
     Config c;
@@ -126,7 +128,7 @@ static void waitRelease(gpio_num_t pin) {
     }
 }
 
-[[noreturn]] static void goDeepSleep() {
+static void goDeepSleep() {
     if (WAIT_RELEASE_BEFORE_SLEEP) waitRelease(PIN_HOME);
     led(false);
     delay(20);
