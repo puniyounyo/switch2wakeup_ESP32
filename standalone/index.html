@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Switch 2 Wakeup - 書き込み</title>
+<style>
+  :root {
+    --bg: #f3f5f7;
+    --card: #ffffff;
+    --text: #1d2733;
+    --sub: #5b6876;
+    --line: #dde3e9;
+    --accent: #0b6bcb;
+    --accent-dark: #084f96;
+    --ok: #1a7f46;
+    --warn-bg: #fff6df;
+    --warn-line: #e5c667;
+    --log-bg: #14181d;
+    --log-text: #b8f5c8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161b;
+      --card: #1b2128;
+      --text: #e6ebf0;
+      --sub: #9aa7b4;
+      --line: #2c3540;
+      --accent: #4a9df0;
+      --accent-dark: #2f7fd0;
+      --ok: #4cc380;
+      --warn-bg: #2e2812;
+      --warn-line: #7a6a2a;
+      --log-bg: #0b0e11;
+      --log-text: #b8f5c8;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 48px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 0 0 10px; }
+  h3 { font-size: 15px; margin: 18px 0 6px; }
+  .lead { color: var(--sub); margin: 0 0 20px; }
+  section {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+  }
+  button {
+    font: inherit;
+    font-size: 15px;
+    padding: 10px 18px;
+    border: 0;
+    border-radius: 6px;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: var(--accent-dark); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+  #status { font-weight: bold; margin: 0 0 10px; min-height: 1.7em; }
+  #status.ok { color: var(--ok); }
+  pre {
+    margin: 0;
+    background: var(--log-bg);
+    color: var(--log-text);
+    border-radius: 6px;
+    padding: 10px 12px;
+    height: 170px;
+    overflow-y: auto;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  ol, ul { margin: 6px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--bg); font-weight: 600; width: 38%; }
+  code { font-family: ui-monospace, Consolas, monospace; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+  .note {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-line);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 12px 0 0;
+  }
+  #unsupported { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Switch 2 Wakeup 書き込み</h1>
+  <p class="lead">ESP32-C3 にスタンドアローン版ファームウェアを書き込みます。書き込みは最初の1回だけ。以降はPCなしで設定を変更できます。</p>
+
+  <section id="unsupported" class="note">
+    このブラウザは Web Serial に対応していません。PC の Chrome または Edge で開いてください。
+  </section>
+
+  <section>
+    <h2>ファームウェアを書き込む</h2>
+    <p>ESP32 を USB でPCにつないでから、下のボタンを順に押します。</p>
+    <div class="actions">
+      <button id="connectBtn">ポートを選んで接続</button>
+      <button id="flashBtn" disabled>書き込み開始</button>
+    </div>
+    <p id="status">未接続</p>
+    <pre id="console">待機中...</pre>
+    <div class="note">
+      接続できない場合は、ESP32 の <code>BOOT</code> ボタンを押したまま USB を差し直してから、もう一度「ポートを選んで接続」を押してください。
+      このページは <code>file://</code> ではなく <code>http://localhost</code> か https のページとして開く必要があります。
+    </div>
+  </section>
+
+  <section>
+    <h2>書き込み後の流れ</h2>
+    <ol>
+      <li>書き込みが終わると ESP32 が再起動し、約15秒のあいだ LED が1秒に1回短く光ります。その後ディープスリープに入ります。</li>
+      <li>ディープスリープに入るとUSBの接続は切れます。PCからデバイスが消えるのは正常です。</li>
+      <li>この時点の設定はダミーMAC(<code>AA:BB:CC:DD:EE:FF</code> / <code>11:22:33:44:55:66</code>)です。ホームボタンを押しても Switch 2 は起動しません。次の「Switch 2 の情報を登録する」を行ってください。</li>
+    </ol>
+
+    <h3>配線</h3>
+    <table>
+      <tr><th>GPIO4</th><td>ホームボタン (押すとGNDに接続)</td></tr>
+      <tr><th>GPIO5</th><td>設定用ボタン (今回はRボタン押し込み。押すとGNDに接続)</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>Switch 2 の情報を登録する</h2>
+    <p>Joy-Con 2 と Switch 2 本体の MAC アドレスを、ESP32 が自分で聞き取って保存します。PC は使いません。</p>
+    <ol>
+      <li>Switch 2 本体をスリープ状態にします。</li>
+      <li>設定用ボタン(R)を押したまま、ホームボタンを押します。電源投入やリセットの瞬間に R を押したままにする方法でも同じです。</li>
+      <li>LED が「ピピッ」と繰り返し光ればスキャナーモードです。動作時間は30秒です。</li>
+      <li>30秒以内に、ペアリング済みの Joy-Con 2 の任意のボタンを押します。本体から外す操作でも反応する場合があります。確実なのはボタンを押す方法です。</li>
+      <li>情報を受け取れると LED が2秒間点灯し、保存してスリープに入ります。</li>
+      <li>ホームボタンを押して Switch 2 が起動すれば完了です。</li>
+    </ol>
+    <p>30秒たっても見つからなかった場合は LED が5回素早く光り、設定は変わらないまま眠ります。Joy-Con 2 を ESP32 に近づけて、もう一度試してください。</p>
+
+    <h3>LED の見かた</h3>
+    <table>
+      <tr><th>1秒に1回、短く光る</th><td>起動直後の待機中(約15秒)</td></tr>
+      <tr><th>高速で点滅</th><td>起動信号を送信中(2.5秒)</td></tr>
+      <tr><th>「ピピッ」を繰り返す</th><td>スキャナーモード(30秒)</td></tr>
+      <tr><th>2秒間点灯</th><td>登録成功</td></tr>
+      <tr><th>5回素早く点滅</th><td>登録失敗(設定は変更なし)</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2>困ったとき</h2>
+    <ul>
+      <li><b>もう一度書き込みたい:</b> <code>BOOT</code> ボタンを押したまま USB を差し直すと、スリープ中でも書き込めます。リセットボタンを押した後の15秒間も接続できます。</li>
+      <li><b>登録した情報を消したい:</b> 結合された .bin を書き込み直すと、登録内容は初期状態(ダミーMAC)に戻ります。</li>
+      <li><b>シリアルモニタで確認したい:</b> リセット後の15秒間に、115200bps で <code>SHOW</code> を送ると現在の登録内容が表示されます。<code>CLR</code> で初期状態に戻せます。</li>
+      <li><b>Switch 2 が起動しない:</b> 登録後に Switch 2 側で Joy-Con 2 の登録を解除していないか確認してください。</li>
+    </ul>
+  </section>
+</main>
+
+<script type="module">
+  import { ESPLoader, Transport } from "https://cdn.jsdelivr.net/npm/esptool-js@0.7.0/bundle.js";
+
+  // 書き込むファームウェア(このHTMLと同じフォルダに置く。Arduino IDE の「.merged.bin」を改名)
+  const FIRMWARE_FILE = "switch2_wakeup_standalone.bin";
+
+  const consoleEl  = document.getElementById("console");
+  const statusEl   = document.getElementById("status");
+  const connectBtn = document.getElementById("connectBtn");
+  const flashBtn   = document.getElementById("flashBtn");
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  function log(text) {
+    consoleEl.textContent += text + "\n";
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+  function setStatus(text, ok = false) {
+    statusEl.textContent = text;
+    statusEl.className = ok ? "ok" : "";
+  }
+
+  if (!("serial" in navigator)) {
+    document.getElementById("unsupported").style.display = "block";
+    connectBtn.disabled = true;
+    setStatus("このブラウザでは使えません");
+  }
+
+  let port = null, transport = null, loader = null;
+
+  // DTR=0のままRTSを 0→1→0 と動かし、通常起動でリセットする
+  async function pulseReset(p) {
+    const set = (dtr, rts) => p.setSignals({ dataTerminalReady: dtr, requestToSend: rts });
+    try {
+      await set(false, false); await sleep(100);
+      await set(false, true);  await sleep(250);
+      await set(false, false); await sleep(100);
+      log("-> リセット信号を送りました");
+    } catch (e) {
+      log(`[リセット信号エラー] ${e.message}`);
+    }
+  }
+
+  connectBtn.addEventListener("click", async () => {
+    try {
+      connectBtn.disabled = true;
+      setStatus("ポートを選択してください...");
+      port = await navigator.serial.requestPort();
+      transport = new Transport(port);
+      loader = new ESPLoader({
+        transport,
+        baudrate: 115200,
+        terminal: {
+          clean() {},
+          writeLine: (d) => log(d),
+          write: (d) => log(d),
+        },
+      });
+      const chip = await loader.main();
+      log(`接続しました: ${chip}`);
+      setStatus("接続済み。「書き込み開始」を押してください");
+      flashBtn.disabled = false;
+    } catch (e) {
+      log(`[接続エラー] ${e.message}`);
+      setStatus("接続できませんでした。BOOTボタンを押したままUSBを差し直して再試行してください");
+      connectBtn.disabled = false;
+    }
+  });
+
+  flashBtn.addEventListener("click", async () => {
+    try {
+      flashBtn.disabled = true;
+      setStatus("書き込み中...  USBを抜かないでください");
+      log(`>>> ${FIRMWARE_FILE} を書き込みます`);
+
+      const res = await fetch(FIRMWARE_FILE);
+      if (!res.ok) throw new Error(`${FIRMWARE_FILE} が見つかりません。index.html と同じフォルダに置いてください。`);
+      const buf = await res.arrayBuffer();
+
+      await loader.writeFlash({
+        fileArray: [{ data: new Uint8Array(buf), address: 0x0000 }],
+        flashSize: "keep",
+        eraseAll: false,
+        compress: true,
+      });
+
+      log(">>> 書き込み完了。再起動します");
+      await pulseReset(port);
+      try { await transport.disconnect(); } catch (e) {}
+      try { await port.close(); } catch (e) {}
+
+      setStatus("書き込み完了。LEDが約15秒チカチカしたあと、スリープに入ります", true);
+      log(">>> 完了。下の「Switch 2 の情報を登録する」に進んでください。");
+      connectBtn.disabled = false;   // 別の個体を続けて書き込めるように
+    } catch (e) {
+      log(`[書込エラー] ${e.message}`);
+      setStatus("書き込みに失敗しました。ログを確認してください");
+      flashBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
